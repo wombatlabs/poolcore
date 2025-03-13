@@ -112,7 +112,7 @@ public:
     } else if (strcmp(coinName, "BEL") == 0) {
       info.Name = "BEL";
       info.FullName = "Bellscoin";
-      info.PayoutAddressType = static_cast<CCoinInfo::EAddressType>(CCoinInfo::EP2PKH | CCoinInfo::EPS2H);
+      info.PayoutAddressType = static_cast<CCoinInfo::EAddressType>(CCoinInfo::EP2PKH | CCoinInfo::EPS2H | CCoinInfo::EBech32);
       info.RationalPartSize = 100000000;
       info.SegwitEnabled = true;
       info.PowerUnitType = CCoinInfo::EHash;

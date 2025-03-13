@@ -119,6 +119,7 @@ public:
       info.PowerMultLog10 = 3;
       info.PubkeyAddressPrefix = {25};
       info.ScriptAddressPrefix = {30};
+      info.Bech32Prefix = "bel";
       info.DefaultRpcPort = 8332;
       info.CoinGeckoName = "bellscoin";
       info.ProfitSwitchDefaultCoeff = 1.0;
@@ -661,13 +662,14 @@ public:
     } else if (strcmp(coinName, "WDC") == 0) {
       info.Name = "WDC";
       info.FullName = "WorldCoin";
-      info.PayoutAddressType = static_cast<CCoinInfo::EAddressType>(CCoinInfo::EP2PKH | CCoinInfo::EPS2H);
+      info.PayoutAddressType = static_cast<CCoinInfo::EAddressType>(CCoinInfo::EP2PKH | CCoinInfo::EPS2H | CCoinInfo::EBech32);
       info.RationalPartSize = 100000000;
       info.SegwitEnabled = true;
       info.PowerUnitType = CCoinInfo::EHash;
       info.PowerMultLog10 = 3;
       info.PubkeyAddressPrefix = {73};
       info.ScriptAddressPrefix = {135};
+      info.Bech32Prefix = "wdc";
       info.DefaultRpcPort = 11082;
       info.CoinGeckoName = "worldcoin";
       info.ProfitSwitchDefaultCoeff = 1.0;

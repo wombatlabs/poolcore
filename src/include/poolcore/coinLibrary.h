@@ -109,6 +109,23 @@ public:
       info.HasExtendedFundRawTransaction = false;
       info.WorkMultiplier = 256.0;
       info.PowLimit = uint256S("0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f");
+    } else if (strcmp(coinName, "BEL") == 0) {
+      info.Name = "BEL";
+      info.FullName = "Bellscoin";
+      info.PayoutAddressType = static_cast<CCoinInfo::EAddressType>(CCoinInfo::EP2PKH | CCoinInfo::EPS2H | CCoinInfo::EBech32);
+      info.RationalPartSize = 100000000;
+      info.SegwitEnabled = true;
+      info.PowerUnitType = CCoinInfo::EHash;
+      info.PowerMultLog10 = 3;
+      info.PubkeyAddressPrefix = {25};
+      info.ScriptAddressPrefix = {30};
+      info.Bech32Prefix = "bel";
+      info.DefaultRpcPort = 8332;
+      info.CoinGeckoName = "bellscoin";
+      info.ProfitSwitchDefaultCoeff = 1.0;
+      info.MinimalConfirmationsNumber = 12;
+      info.Algorithm = "scrypt";
+      info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
     } else if (strcmp(coinName, "BTC") == 0) {
       info.Name = "BTC";
       info.FullName = "Bitcoin";
@@ -178,7 +195,7 @@ public:
       info.PubkeyAddressPrefix = {0};
       info.ScriptAddressPrefix = {5};
       info.DefaultRpcPort = 8332;
-      info.CoinGeckoName = "bitcoin-cash-sv";
+      info.CoinGeckoName = "bitcoin-sv";
       info.Algorithm = "sha256";
       info.PowLimit = uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
     } else if (strcmp(coinName, "BSV.testnet") == 0) {
@@ -483,6 +500,22 @@ public:
       info.CoinGeckoName = "freecash";
       info.Algorithm = "sha256";
       info.PowLimit = uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+    } else if (strcmp(coinName, "FB") == 0) {
+      info.Name = "FB";
+      info.FullName = "Fractal Bitcoin";
+      info.PayoutAddressType = static_cast<CCoinInfo::EAddressType>(CCoinInfo::EP2PKH | CCoinInfo::EPS2H | CCoinInfo::EBech32);
+      info.RationalPartSize = 100000000;
+      info.SegwitEnabled = true;
+      info.PowerUnitType = CCoinInfo::EHash;
+      info.PowerMultLog10 = 6;
+      info.PubkeyAddressPrefix = {0};
+      info.ScriptAddressPrefix = {5};
+      info.Bech32Prefix = "bc";
+      info.DefaultRpcPort = 8332;
+      info.CoinGeckoName = "fractal-bitcoin";
+      info.ProfitSwitchDefaultCoeff = 1.0;
+      info.Algorithm = "sha256";
+      info.PowLimit = uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
     } else if (strcmp(coinName, "KMD") == 0) {
       info.Name = "KMD";
       info.FullName = "Komodo";
@@ -597,6 +630,22 @@ public:
       info.MinimalConfirmationsNumber = 12;
       info.Algorithm = "scrypt";
       info.PowLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+    } else if (strcmp(coinName, "NYC") == 0) {
+      info.Name = "NYC";
+      info.FullName = "NewYorkCoin";
+      info.PayoutAddressType = static_cast<CCoinInfo::EAddressType>(CCoinInfo::EP2PKH | CCoinInfo::EPS2H);
+      info.RationalPartSize = 100000000;
+      info.SegwitEnabled = true;
+      info.PowerUnitType = CCoinInfo::EHash;
+      info.PowerMultLog10 = 3;
+      info.PubkeyAddressPrefix = {60};
+      info.ScriptAddressPrefix = {22};
+      info.DefaultRpcPort = 22555;
+      info.CoinGeckoName = "wrapped-newyorkcoin";
+      info.ProfitSwitchDefaultCoeff = 1.0;
+      info.MinimalConfirmationsNumber = 12;
+      info.Algorithm = "scrypt";
+      info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
     } else if (strcmp(coinName, "SPACE") == 0) {
       info.Name = "SPACE";
       info.FullName = "MVC";
@@ -610,6 +659,23 @@ public:
       info.DefaultRpcPort = 9882;
       info.Algorithm = "sha256";
       info.PowLimit = uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+    } else if (strcmp(coinName, "WDC") == 0) {
+      info.Name = "WDC";
+      info.FullName = "WorldCoin";
+      info.PayoutAddressType = static_cast<CCoinInfo::EAddressType>(CCoinInfo::EP2PKH | CCoinInfo::EPS2H | CCoinInfo::EBech32);
+      info.RationalPartSize = 100000000;
+      info.SegwitEnabled = true;
+      info.PowerUnitType = CCoinInfo::EHash;
+      info.PowerMultLog10 = 3;
+      info.PubkeyAddressPrefix = {73};
+      info.ScriptAddressPrefix = {135};
+      info.Bech32Prefix = "wdc";
+      info.DefaultRpcPort = 11082;
+      info.CoinGeckoName = "worldcoin-wdc";
+      info.ProfitSwitchDefaultCoeff = 1.0;
+      info.MinimalConfirmationsNumber = 12;
+      info.Algorithm = "scrypt";
+      info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
     } else if (strcmp(coinName, "XEC") == 0) {
       info.Name = "XEC";
       info.FullName = "eCash";

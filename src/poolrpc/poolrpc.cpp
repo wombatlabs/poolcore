@@ -345,3 +345,82 @@ void *poolRpcThread(void *arg)
   asyncLoop(poolObject.base());
   return nullptr;
 }
+
+void getPoolStatsHandler(p2pConnection *socket, const P2PMessage *msg, uint32_t id) {
+  LOG_F(INFO, "Received getPoolStats request");
+
+  std::vector<StatisticDb::CredentialsWithStatistic> userStats;
+  _statistics->getRecentStats(userStats);
+
+  double totalHashrate = 0;
+  double totalShareWork = 0;
+  uint32_t totalWorkers = 0;
+  std::vector<double> efficiencies;
+
+  for (const auto &user : userStats) {
+    totalHashrate += user.AveragePower;
+    totalWorkers += user.WorkersNum;
+    totalShareWork += user.SharesPerSecond;
+    if (user.SharesPerSecond > 0) {
+      efficiencies.push_back(user.SharesPerSecond); // proxy for efficiency
+    }
+  }
+
+  // Mean & median efficiency
+  double meanEfficiency = 0;
+  double medianEfficiency = 0;
+  if (!efficiencies.empty()) {
+    double sum = std::accumulate(efficiencies.begin(), efficiencies.end(), 0.0);
+    meanEfficiency = sum / efficiencies.size();
+    std::sort(efficiencies.begin(), efficiencies.end());
+    size_t mid = efficiencies.size() / 2;
+    medianEfficiency = (efficiencies.size() % 2 == 0)
+                      ? (efficiencies[mid - 1] + efficiencies[mid]) / 2.0
+                      : efficiencies[mid];
+  }
+
+  // Retrieve found blocks
+  std::vector<FoundBlockRecord> foundBlocks;
+  _accounting->getFoundBlocks(foundBlocks);
+
+  uint32_t totalBlocksFound = static_cast<uint32_t>(foundBlocks.size());
+  int64_t latestBlockTime = 0;
+  double totalPaidOut = 0.0;
+
+  for (const auto &blk : foundBlocks) {
+    if (blk.Time > latestBlockTime)
+      latestBlockTime = blk.Time;
+    totalPaidOut += blk.AvailableCoins;
+  }
+
+  int64_t currentTime = static_cast<int64_t>(time(nullptr));
+  uint64_t timeSinceLastBlock = latestBlockTime > 0 ? currentTime - latestBlockTime : 0;
+
+  // Retrieve network difficulty
+  double networkDifficulty = 1.0;
+  if (_blockTemplate)
+    networkDifficulty = _blockTemplate->difficulty;
+
+  // Estimate expected time to next block
+  double expectedBlockTime = (totalHashrate > 0)
+      ? (networkDifficulty * pow(2.0, 32) / totalHashrate)
+      : 0.0;
+
+  // Serialize and send
+  xmstream stream;
+  serializeString("getPoolStats", stream);
+  serializeJsonMapSize(10, stream);
+  serializeKeyValue("poolHashrate", totalHashrate, stream);
+  serializeKeyValue("activeUsers", (uint32_t)userStats.size(), stream);
+  serializeKeyValue("activeWorkers", totalWorkers, stream);
+  serializeKeyValue("meanShareEfficiency", meanEfficiency, stream);
+  serializeKeyValue("medianShareEfficiency", medianEfficiency, stream);
+  serializeKeyValue("totalWorkDone", totalShareWork, stream);
+  serializeKeyValue("totalBlocksFound", totalBlocksFound, stream);
+  serializeKeyValue("totalPaidOut", totalPaidOut, stream);
+  serializeKeyValue("expectedBlockTime", expectedBlockTime, stream);
+  serializeKeyValue("timeSinceLastBlock", timeSinceLastBlock, stream);
+
+  sendMessage(socket, msg->command, id, stream);
+}
+

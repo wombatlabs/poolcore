@@ -151,7 +151,7 @@ rocksdb::DB *rocksdbBase::open(rocksdbBase::partition &partition)
     
       rocksdb::Options options;
       options.create_if_missing = true;
-      rocksdb::Status status = rocksdb::DB::Open(options, partitionPath.u8string(), &partition.db);
+      rocksdb::Status status = rocksdb::DB::Open(options, partitionPath.string(), &partition.db);
     }
   }
   
@@ -261,7 +261,7 @@ rocksdbBase::rocksdbBase(const std::filesystem::path &path) : _path(path)
   for (std::filesystem::directory_iterator dirIt(path); dirIt != dirItEnd; ++dirIt) {
     if (is_directory(dirIt->status())) {
       // Add a partition
-      _partitions.push_back(partition(dirIt->path().filename().u8string()));
+      _partitions.push_back(partition(dirIt->path().filename().string()));
       LOG_F(INFO, "   * found partition %s for %s", dirIt->path().c_str(), path.c_str());
     }
   }
@@ -274,7 +274,7 @@ rocksdbBase::~rocksdbBase()
   for (auto &p: _partitions) {
     delete p.db;
     if (p.db)
-      LOG_F(INFO, "partition %s / %s was closed", _path.u8string().c_str(), p.id.c_str());
+      LOG_F(INFO, "partition %s / %s was closed", _path.string().c_str(), p.id.c_str());
   }
 }
 

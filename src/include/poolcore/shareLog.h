@@ -84,7 +84,7 @@ public:
         std::string fileName = I->path().filename().generic_string();
         auto dotDatPos = fileName.find(".dat");
         if (dotDatPos == fileName.npos) {
-          LOG_F(WARNING, "Ignore shares file: %s", I->path().u8string().c_str());
+          LOG_F(WARNING, "Ignore shares file: %s", I->path().string().c_str());
           continue;
         }
 
@@ -113,7 +113,7 @@ public:
       if (lastFile.Fd.open(lastFile.Path)) {
         lastFile.Fd.seekSet(lastFile.Fd.size());
       } else {
-        LOG_F(ERROR, "Can't open share log %s", lastFile.Path.u8string().c_str());
+        LOG_F(ERROR, "Can't open share log %s", lastFile.Path.string().c_str());
         ShareLoggingEnabled_ = false;
       }
     } else {
@@ -168,7 +168,7 @@ private:
 
     FileDescriptor fd;
     if (!fd.open(file.Path.u8string().c_str())) {
-      LOG_F(ERROR, "StatisticDb: can't open file %s", file.Path.u8string().c_str());
+      LOG_F(ERROR, "StatisticDb: can't open file %s", file.Path.string().c_str());
       return;
     }
 
@@ -177,7 +177,7 @@ private:
     size_t bytesRead = fd.read(stream.reserve(fileSize), 0, fileSize);
     fd.close();
     if (bytesRead != fileSize) {
-      LOG_F(ERROR, "StatisticDb: can't read file %s", file.Path.u8string().c_str());
+      LOG_F(ERROR, "StatisticDb: can't read file %s", file.Path.string().c_str());
       return;
     }
 
@@ -200,7 +200,7 @@ private:
         ShareLogIo<CShare>::unserialize(stream, share);
       }
       if (stream.eof()) {
-        LOG_F(ERROR, "Corrupted file %s", file.Path.u8string().c_str());
+        LOG_F(ERROR, "Corrupted file %s", file.Path.string().c_str());
         break;
       }
 
@@ -229,10 +229,10 @@ private:
     file.FirstId = CurrentShareId_;
     file.LastId = 0;
     if (!file.Fd.open(file.Path)) {
-      LOG_F(ERROR, "PoolBackend: can't write to share log %s", file.Path.u8string().c_str());
+      LOG_F(ERROR, "PoolBackend: can't write to share log %s", file.Path.string().c_str());
       ShareLoggingEnabled_ = false;
     } else {
-      LOG_F(INFO, "PoolBackend: started new share log file %s", file.Path.u8string().c_str());
+      LOG_F(INFO, "PoolBackend: started new share log file %s", file.Path.string().c_str());
     }
   }
 

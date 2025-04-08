@@ -6,7 +6,7 @@ cxxpm_initialize(
 
 cmake_minimum_required(VERSION 3.11)
 project(poolcore)
-set (CMAKE_CXX_STANDARD 17)
+set (CMAKE_CXX_STANDARD 20)
 
 if (SANITIZER_ENABLED)
   set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address")
@@ -80,3 +80,10 @@ add_subdirectory(blockmaker)
 add_subdirectory(poolcommon)
 add_subdirectory(poolcore)
 add_subdirectory(poolinstances)
+
+# Pool service applications
+add_subdirectory(pool_accounting_svc)
+add_subdirectory(pool_coinprice_svc)
+add_subdirectory(pool_mine_svc)
+add_subdirectory(pool_stats_svc)
+add_subdirectory(pool_master_svc)

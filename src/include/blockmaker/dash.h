@@ -3,7 +3,7 @@
 
 #include <vector>
 #include <cstdint>
-#include "uint256.h"
+#include "poolcommon/uint256.h"
 #include "rapidjson/document.h"
 #include "blockmaker/coin.h"
 

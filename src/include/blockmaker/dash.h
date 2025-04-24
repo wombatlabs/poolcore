@@ -4,7 +4,7 @@
 #include "blockmaker/btcLike.h"
 #include <vector>
 #include <string>
-#include "uint256.h"
+#include "include/poolcommon/uint256.h"
 
 struct CbTx {
     uint16_t version;

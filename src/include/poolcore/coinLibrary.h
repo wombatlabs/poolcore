@@ -243,7 +243,7 @@ public:
       info.Algorithm = "sha256";
       info.PowLimit = uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
       info.WorkType = EWorkBitcoin;
-    else if (strcmp(coinName, "DASH") == 0) {
+    } else if (strcmp(coinName, "DASH") == 0) {
       info.Name = "DASH";
       info.FullName = "Dash";
       info.PayoutAddressType = static_cast<CCoinInfo::EAddressType>(CCoinInfo::EP2PKH | CCoinInfo::EPS2H);

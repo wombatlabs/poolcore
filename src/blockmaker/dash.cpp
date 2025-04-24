@@ -2,79 +2,58 @@
 #include "blockmaker/x11.h"
 #include "util/serialize.h"
 
-// -------------------- CbTx Implementation --------------------
-
-void CbTx::serialize(std::vector<uint8_t>& out) const {
-    serializeUint16(out, version);
-    serializeUint32(out, height);
-    serializeHash(out, merkleRootMNList);
-    serializeHash(out, merkleRootQuorums);
-    serializeUint16(out, bestCLHeightDiff);
-    serializeVarBytes(out, bestCLSignature);
-    serializeVarInt(out, creditPoolBalance);
-}
-
-void CbTx::unserialize(const std::vector<uint8_t>& in) {
-    size_t offset = 0;
-    version = unserializeUint16(in, offset);
-    height = unserializeUint32(in, offset);
-    merkleRootMNList = unserializeHash(in, offset);
-    merkleRootQuorums = unserializeHash(in, offset);
-    bestCLHeightDiff = unserializeUint16(in, offset);
-    bestCLSignature = unserializeVarBytes(in, offset);
-    creditPoolBalance = unserializeVarInt(in, offset);
-}
-
-// ---------------- ProviderRegisterTx Implementation ----------------
-
-void ProviderRegisterTx::serialize(std::vector<uint8_t>& out) const {
-    serializeUint16(out, version);
-    serializeString(out, collateralAddress);
-    serializeString(out, serviceAddress);
-    serializeVarBytes(out, pubKeyOperator);
-    serializeVarBytes(out, operatorReward);
-    serializeString(out, payoutAddress);
-}
-
-void ProviderRegisterTx::unserialize(const std::vector<uint8_t>& in) {
-    size_t offset = 0;
-    version = unserializeUint16(in, offset);
-    collateralAddress = unserializeString(in, offset);
-    serviceAddress = unserializeString(in, offset);
-    pubKeyOperator = unserializeVarBytes(in, offset);
-    operatorReward = unserializeVarBytes(in, offset);
-    payoutAddress = unserializeString(in, offset);
-}
-
-// -------------------- DashCoin Implementation --------------------
-
 DashCoin::DashCoin() {
-    name = "dash";
-    algo = "x11";
-    port = 9999;
+    name = "DASH";
     symbol = "DASH";
-    supportsSegwit = false;
+    segwit = false;
+    version = 0x20000000;  // if using version bits, else adjust
+    txVersion = 3;
 }
 
 void DashCoin::hash(const uint8_t* input, uint32_t len, uint8_t* output) {
     x11_hash(input, len, output);
 }
 
-void DashCoin::buildCoinbaseTx(CoinbaseTemplate& cb, const BlockTemplate& bt) {
-    BtcLikeCoin::buildCoinbaseTx(cb, bt);
+void DashCoin::buildCoinbaseTx(CoinbaseTx& cb, const BlockTemplate& bt) {
+    cb.version = (5 << 16) | 3; // Type 5 (coinbase), Version 3
+    cb.lockTime = 0;
 
-    cb.version = (5 << 16) | 3; // Type 5 (cbTx), Version 3
+    CbTx extra;
+    extra.version = 3;
+    extra.height = bt.height;
+    extra.merkleRootMNList = bt.merkleRootMNList;
+    extra.merkleRootQuorums = bt.merkleRootQuorums;
+    extra.bestCLHeightDiff = 0;
+    extra.bestCLSignature = {}; // Set properly if ChainLocks are used
+    extra.creditPoolBalance = 0;
 
-    CbTx cbtx;
-    cbtx.version = 3;
-    cbtx.height = bt.height;
-    cbtx.merkleRootMNList = bt.merkleRootMNList;
-    cbtx.merkleRootQuorums = bt.merkleRootQuorums;
-    cbtx.bestCLHeightDiff = 0;
-    cbtx.bestCLSignature = bt.bestCLSignature;
-    cbtx.creditPoolBalance = static_cast<uint64_t>(bt.creditPoolBalance * 1e8);
+    std::vector<uint8_t> payload;
+    extra.serialize(payload);
+    cb.extraPayload = payload;
+}
 
-    cbtx.serialize(cb.extraPayload);
+// CbTx serialization helpers
+void CbTx::serialize(std::vector<uint8_t>& out) const {
+    xmstream stream;
+    serializeVarInt(stream, version);
+    serializeLE(stream, height);
+    serializeLE(stream, merkleRootMNList);
+    serializeLE(stream, merkleRootQuorums);
+    serializeLE(stream, bestCLHeightDiff);
+    serializeVarBytes(stream, bestCLSignature);
+    serializeLE(stream, creditPoolBalance);
+    out.assign(stream.data(), stream.data() + stream.size());
+}
+
+void CbTx::unserialize(const std::vector<uint8_t>& in) {
+    xmstream stream(in.data(), in.size());
+    version = readVarInt<uint16_t>(stream);
+    height = unserializeLE<uint32_t>(stream);
+    unserializeLE(stream, merkleRootMNList);
+    unserializeLE(stream, merkleRootQuorums);
+    bestCLHeightDiff = unserializeLE<uint16_t>(stream);
+    bestCLSignature = readVarBytes(stream);
+    creditPoolBalance = unserializeLE<uint64_t>(stream);
 }
 
 extern "C" BtcLikeCoin* createCoin() {

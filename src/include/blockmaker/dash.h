@@ -1,10 +1,10 @@
 #pragma once
 
 #include "blockmaker/btcLike.h"
-#include "blockmaker/template.h"
 #include <vector>
 #include <string>
 #include "poolcommon/uint256.h"
+#include "poolcore/blockTemplate.h"
 
 struct CbTx {
     uint16_t version;

@@ -5,7 +5,6 @@
 #include <cstdint>
 #include "poolcommon/uint256.h"
 #include "rapidjson/document.h"
-#include "blockmaker/coin.h"
 
 namespace DASH {
 namespace Proto {

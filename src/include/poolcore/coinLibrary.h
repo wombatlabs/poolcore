@@ -593,6 +593,22 @@ public:
       info.Algorithm = "sha256";
       info.PowLimit = uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
       info.CanBeSecondaryCoin = true;
+    } else if (strcmp(coinName, "HOOT") == 0) {
+      info.Name = "HOOT";
+      info.FullName = "Hootchain";
+      info.PayoutAddressType = static_cast<CCoinInfo::EAddressType>(CCoinInfo::EP2PKH | CCoinInfo::EPS2H);
+      info.RationalPartSize = 100000000;
+      info.SegwitEnabled = false;
+      info.PowerUnitType = CCoinInfo::EHash;
+      info.PowerMultLog10 = 6;
+      info.PubkeyAddressPrefix = {100};
+      info.ScriptAddressPrefix = {15};
+      info.DefaultRpcPort = 6886;
+      info.CoinGeckoName = "hootchain";
+      info.MinimalConfirmationsNumber = 6;
+      info.Algorithm = "x11";
+      info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+      info.CanBeSecondaryCoin = true;
     } else if (strcmp(coinName, "JKC") == 0) {
       info.Name = "JKC";
       info.FullName = "Junkcoin";
@@ -786,6 +802,37 @@ public:
       info.Algorithm = "scrypt";
       info.PowLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
       info.WorkType = EWorkBitcoin;
+    } else if (strcmp(coinName, "MAXI") == 0) {
+      info.Name = "MAXI";
+      info.FullName = "Maximus";
+      info.PayoutAddressType = static_cast<CCoinInfo::EAddressType>(CCoinInfo::EP2PKH | CCoinInfo::EPS2H);
+      info.RationalPartSize = 100000000;
+      info.SegwitEnabled = false;
+      info.PowerUnitType = CCoinInfo::EHash;
+      info.PowerMultLog10 = 6;
+      info.PubkeyAddressPrefix = {50};
+      info.ScriptAddressPrefix = {5};
+      info.DefaultRpcPort = 9938;
+      info.MinimalConfirmationsNumber = 6;
+      info.Algorithm = "x11";
+      info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+      info.CanBeSecondaryCoin = true;
+    } else if (strcmp(coinName, "OSMI") == 0) {
+      info.Name = "OSMI";
+      info.FullName = "Osmium";
+      info.PayoutAddressType = static_cast<CCoinInfo::EAddressType>(CCoinInfo::EP2PKH | CCoinInfo::EPS2H);
+      info.RationalPartSize = 100000000;
+      info.SegwitEnabled = false;
+      info.PowerUnitType = CCoinInfo::EHash;
+      info.PowerMultLog10 = 6;
+      info.PubkeyAddressPrefix = {63};
+      info.ScriptAddressPrefix = {15};
+      info.DefaultRpcPort = 9968;
+      info.CoinGeckoName = "osmium";
+      info.MinimalConfirmationsNumber = 6;
+      info.Algorithm = "x11";
+      info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+      info.CanBeSecondaryCoin = true;
     } else if (strcmp(coinName, "PEP") == 0) {
       info.Name = "PEP";
       info.FullName = "Pepecoin";

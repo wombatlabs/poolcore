@@ -256,6 +256,7 @@ public:
       info.DefaultRpcPort = 9998;
       info.CoinGeckoName = "dash";
       info.MinimalConfirmationsNumber = 6;
+      info.ProfitSwitchDefaultCoeff = 1.0;
       info.Algorithm = "x11";
       info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
       info.WorkType = EWorkBitcoin;

@@ -258,6 +258,7 @@ public:
       info.MinimalConfirmationsNumber = 6;
       info.Algorithm = "x11";
       info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+      info.WorkType = EWorkBitcoin;
     } else if (strcmp(coinName, "DGB.sha256") == 0) {
       info.Name = "DGB.sha256";
       info.FullName = "Digibyte(sha256)";
@@ -608,6 +609,7 @@ public:
       info.MinimalConfirmationsNumber = 6;
       info.Algorithm = "x11";
       info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+      info.WorkType = EWorkBitcoin;
       info.CanBeSecondaryCoin = true;
     } else if (strcmp(coinName, "JKC") == 0) {
       info.Name = "JKC";
@@ -816,6 +818,7 @@ public:
       info.MinimalConfirmationsNumber = 6;
       info.Algorithm = "x11";
       info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+      info.WorkType = EWorkBitcoin;
       info.CanBeSecondaryCoin = true;
     } else if (strcmp(coinName, "OSMI") == 0) {
       info.Name = "OSMI";
@@ -832,6 +835,7 @@ public:
       info.MinimalConfirmationsNumber = 6;
       info.Algorithm = "x11";
       info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+      info.WorkType = EWorkBitcoin;
       info.CanBeSecondaryCoin = true;
     } else if (strcmp(coinName, "PEP") == 0) {
       info.Name = "PEP";

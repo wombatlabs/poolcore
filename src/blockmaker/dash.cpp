@@ -1,32 +1,33 @@
 #include "blockmaker/dash.h"
 #include "blockmaker/serialize.h"
-#include "blockmaker/serializeUtils.h"
+
+namespace BTC { // This is where Io is defined
 
 template <>
-struct Io<DASH::Proto::Transaction> {
-    static void serialize(xmstream &dst, const DASH::Proto::Transaction &data, bool /*serializeWitness*/) {
-        dst.write<uint32_t>(data.version);
-        IoArray<BTC::Proto::TxIn>::serialize(dst, data.vin);
-        IoArray<BTC::Proto::TxOut>::serialize(dst, data.vout);
-        dst.write<uint32_t>(data.lockTime);
+void Io<DASH::Proto::Transaction>::serialize(xmstream &dst, const DASH::Proto::Transaction &data, bool /*serializeWitness*/) {
+    serialize(dst, data.version);
+    IoArray<Proto::TxIn>::serialize(dst, data.vin);
+    IoArray<Proto::TxOut>::serialize(dst, data.vout);
+    serialize(dst, data.lockTime);
 
-        if (data.hasExtraPayload()) {
-            dst.writeVarint(data.vExtraPayload.size());
-            dst.write(data.vExtraPayload.data(), data.vExtraPayload.size());
-        }
+    if (!data.vExtraPayload.empty()) {
+        dst.writeVarint(data.vExtraPayload.size());
+        dst.write(data.vExtraPayload.data(), data.vExtraPayload.size());
     }
+}
 
-    static void unserialize(xmstream &src, DASH::Proto::Transaction &data) {
-        data.version = src.read<uint32_t>();
-        IoArray<BTC::Proto::TxIn>::unserialize(src, data.vin);
-        IoArray<BTC::Proto::TxOut>::unserialize(src, data.vout);
-        data.lockTime = src.read<uint32_t>();
+template <>
+void Io<DASH::Proto::Transaction>::unserialize(xmstream &src, DASH::Proto::Transaction &data) {
+    unserialize(src, data.version);
+    IoArray<Proto::TxIn>::unserialize(src, data.vin);
+    IoArray<Proto::TxOut>::unserialize(src, data.vout);
+    unserialize(src, data.lockTime);
 
-        if (!src.empty()) {
-            size_t payloadSize = src.readVarint();
-            data.vExtraPayload.resize(payloadSize);
-            src.read(data.vExtraPayload.data(), payloadSize);
-        }
+    if (!src.isEmpty()) {
+        size_t payloadSize = src.readVarint();
+        data.vExtraPayload.resize(payloadSize);
+        src.read(data.vExtraPayload.data(), payloadSize);
     }
-};
+}
 
+} // namespace BTC

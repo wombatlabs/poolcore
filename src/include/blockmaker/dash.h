@@ -10,8 +10,8 @@ namespace Proto {
 
 struct Transaction {
     int32_t version;
-    std::vector<TxIn> vin;
-    std::vector<TxOut> vout;
+    std::vector<BTC::Proto::TxIn> vin;
+    std::vector<BTC::Proto::TxOut> vout;
     uint32_t lockTime;
     std::vector<uint8_t> vExtraPayload;
 

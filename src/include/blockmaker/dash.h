@@ -3,6 +3,7 @@
 #include <vector>
 #include "btcLike.h"
 #include "serialize.h"
+#include "btc.h"
 
 namespace DASH {
 namespace Proto {
@@ -22,8 +23,3 @@ struct Transaction {
 } // namespace Proto
 } // namespace DASH
 
-template <>
-void Io<DASH::Proto::Transaction>::serialize(xmstream &dst, const DASH::Proto::Transaction &data, bool serializeWitness = false);
-
-template <>
-void Io<DASH::Proto::Transaction>::unserialize(xmstream &src, DASH::Proto::Transaction &data);

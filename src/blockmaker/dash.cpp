@@ -1,10 +1,12 @@
 #include "blockmaker/dash.h"
+#include "blockmaker/serialize.h"
+#include "blockmaker/serializeUtils.h"
 
 template <>
 void Io<DASH::Proto::Transaction>::serialize(xmstream &dst, const DASH::Proto::Transaction &data, bool /*serializeWitness*/) {
     dst.write<uint32_t>(data.version);
-    IoArray<TxIn>::serialize(dst, data.vin);
-    IoArray<TxOut>::serialize(dst, data.vout);
+    IoArray<BTC::Proto::TxIn>::serialize(dst, data.vin);
+    IoArray<BTC::Proto::TxOut>::serialize(dst, data.vout);
     dst.write<uint32_t>(data.lockTime);
 
     if (data.hasExtraPayload()) {
@@ -16,8 +18,8 @@ void Io<DASH::Proto::Transaction>::serialize(xmstream &dst, const DASH::Proto::T
 template <>
 void Io<DASH::Proto::Transaction>::unserialize(xmstream &src, DASH::Proto::Transaction &data) {
     data.version = src.read<uint32_t>();
-    IoArray<TxIn>::unserialize(src, data.vin);
-    IoArray<TxOut>::unserialize(src, data.vout);
+    IoArray<BTC::Proto::TxIn>::unserialize(src, data.vin);
+    IoArray<BTC::Proto::TxOut>::unserialize(src, data.vout);
     data.lockTime = src.read<uint32_t>();
 
     if (!src.empty()) {
@@ -26,3 +28,4 @@ void Io<DASH::Proto::Transaction>::unserialize(xmstream &src, DASH::Proto::Trans
         src.read(data.vExtraPayload.data(), payloadSize);
     }
 }
+

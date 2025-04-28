@@ -278,6 +278,7 @@ public:
       info.Algorithm = "sha256";
       info.PowLimit = ArithToUint256(~arith_uint256(static_cast<uint64_t>(0)) >> 20);
       info.WorkType = EWorkBitcoin;
+      info.CanBeSecondaryCoin = true;
     } else if (strcmp(coinName, "DGB.sha256.testnet") == 0) {
       info.Name = "DGB.sha256.testnet";
       info.FullName = "Digibyte";
@@ -312,6 +313,7 @@ public:
       info.Algorithm = "scrypt";
       info.PowLimit = ArithToUint256(~arith_uint256(static_cast<uint64_t>(0)) >> 20);
       info.WorkType = EWorkBitcoin;
+      info.CanBeSecondaryCoin = true;
     } else if (strcmp(coinName, "DGB.scrypt.testnet") == 0) {
       info.Name = "DGB.scrypt.testnet";
       info.FullName = "Digibyte";

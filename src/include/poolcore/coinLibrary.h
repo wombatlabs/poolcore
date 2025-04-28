@@ -818,6 +818,7 @@ public:
       info.PubkeyAddressPrefix = {50};
       info.ScriptAddressPrefix = {5};
       info.DefaultRpcPort = 9938;
+      info.CoinGeckoName = "pepecoin";
       info.MinimalConfirmationsNumber = 6;
       info.Algorithm = "x11";
       info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");

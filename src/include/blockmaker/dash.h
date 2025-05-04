@@ -1,7 +1,7 @@
 #pragma once
 #include "serialize.h"
 #include "xvector.h"
-#include "uint256.h"
+#include "poolcommon/uint256.h"
 #include "blockmaker/x11.h"
 
 template<typename T> struct Io;

@@ -1,7 +1,7 @@
 #pragma once
 #include "serialize.h"
 #include "xvector.h"
-#include "uint256.h"
+#include "poolcommon/uint256.h"
 
 namespace DASH {
 namespace Proto {

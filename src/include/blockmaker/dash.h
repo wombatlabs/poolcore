@@ -3,6 +3,7 @@
 #include "xvector.h"
 #include "poolcommon/uint256.h"
 #include "blockmaker/x11.h"
+#include "poolinstances/stratum.h"  // for CStratumMessage, CSubscribeInfo
 
 template<typename T> struct Io;
 
@@ -39,14 +40,13 @@ struct BlockHeader {
 };
 
 using AddressTy = std::vector<uint8_t>;
+using BlockHashTy = uint256;
 
 static inline bool decodeHumanReadableAddress(const std::string &addr, uint8_t prefix, AddressTy &out) {
     (void)addr; (void)prefix;
     out.clear();
     return true;
 }
-
-using BlockHashTy = uint256;
 
 } // namespace Proto
 
@@ -78,7 +78,7 @@ struct Stratum {
     }
 
     static void workerConfigOnSubscribe(CWorkerConfig &cfg, const CMiningConfig &miningCfg,
-                                        const CStratumMessage &, xmstream &, CSubscribeInfo &) {
+                                        const CStratumMessage &, xmstream &, std::string &) {
         (void)cfg; (void)miningCfg;
     }
 
@@ -98,7 +98,6 @@ struct X {
 
     using Transaction = DASH::Proto::Transaction;
     using BlockHeader = DASH::Proto::BlockHeader;
-    using Proto = DASH::Proto;
     using Stratum = DASH::Stratum;
 
     template<typename T>

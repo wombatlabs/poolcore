@@ -1,8 +1,10 @@
 #pragma once
 #include <cstdint>
 #include <vector>
+#include <string>
 
-#include "blockmaker/btc.h"
+#include "blockmaker/stratumWork.h"  // For WorkTy
+#include "blockmaker/btc.h"          // For BTC::Proto types
 #include "serialize.h"
 #include "p2putils/xmstream.h"
 
@@ -21,11 +23,13 @@ struct Transaction {
     }
 };
 
-// Required by StratumInstance
-using AddressTy = std::vector<uint8_t>;
+// ✅ Match BTC's address type to satisfy StratumInstance<X>
+using AddressTy = BTC::Proto::AddressTy;
 
-static inline bool decodeHumanReadableAddress(const std::string &addr, const std::vector<uint8_t> &prefix, AddressTy &decoded) {
-    return BTC::Proto::decodeHumanReadableAddress(addr, prefix, decoded); // Use BTC logic
+static inline bool decodeHumanReadableAddress(const std::string &addr,
+                                              const std::vector<uint8_t> &prefix,
+                                              AddressTy &decoded) {
+    return BTC::Proto::decodeHumanReadableAddress(addr, prefix, decoded);
 }
 
 } // namespace Proto
@@ -33,16 +37,16 @@ static inline bool decodeHumanReadableAddress(const std::string &addr, const std
 
 namespace DASH {
 
-// Required traits for stratum instance
+// ✅ Traits for poolcore stratum engine
 struct StratumTraits {
     static constexpr bool MergedMiningSupport = false;
 
     static void miningConfigInitialize(CMiningConfig &cfg, rapidjson::Value &json) {
-        BTC::Stratum::miningConfigInitialize(cfg, json); // Reuse BTC
+        BTC::Stratum::miningConfigInitialize(cfg, json); // Reuse BTC logic
     }
 };
 
-// Declare Stratum type using BTC-like logic
+// ✅ Dash-specific Work type (uses Bitcoin-like structure)
 using Stratum = WorkTy<
     DASH::Proto,
     BTC::Stratum::HeaderBuilder,
@@ -52,7 +56,7 @@ using Stratum = WorkTy<
     StratumTraits
 >;
 
-// Required factory function
+// ✅ Used by Fabric to instantiate Dash jobs
 static Stratum::Work *newPrimaryWork(int64_t stratumId,
                                      CBlockTemplate &blockTemplate,
                                      const CMiningConfig &miningCfg,
@@ -73,19 +77,19 @@ static Stratum::Work *newPrimaryWork(int64_t stratumId,
     return work->loadFromTemplate(blockTemplate, error) ? work.release() : nullptr;
 }
 
-// Namespace required by StratumInstance
+// ✅ Plug-in class for StratumInstance<X>
 struct X {
     using Proto = DASH::Proto;
     using Stratum = DASH::Stratum;
 
     template<typename T>
     static inline void serialize(xmstream &src, const T &data) {
-        BTC::Io<T>::serialize(src, data); // Use BTC's template implementation
+        BTC::Io<T>::serialize(src, data);
     }
 
     template<typename T>
     static inline void unserialize(xmstream &dst, T &data) {
-        BTC::Io<T>::unserialize(dst, data); // Use BTC's template implementation
+        BTC::Io<T>::unserialize(dst, data);
     }
 };
 

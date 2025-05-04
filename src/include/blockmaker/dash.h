@@ -3,8 +3,8 @@
 #include <vector>
 #include <string>
 
-#include "blockmaker/stratumWork.h"  // For WorkTy
-#include "blockmaker/btc.h"          // For BTC::Proto types
+#include "btc.h"
+#include "stratumWork.h"
 #include "serialize.h"
 #include "p2putils/xmstream.h"
 
@@ -23,7 +23,7 @@ struct Transaction {
     }
 };
 
-// ✅ Match BTC's address type to satisfy StratumInstance<X>
+// ✅ Must match BTC address type
 using AddressTy = BTC::Proto::AddressTy;
 
 static inline bool decodeHumanReadableAddress(const std::string &addr,
@@ -33,22 +33,19 @@ static inline bool decodeHumanReadableAddress(const std::string &addr,
 }
 
 } // namespace Proto
-} // namespace DASH
 
-namespace DASH {
-
-// ✅ Traits for poolcore stratum engine
+// ✅ Dash-specific stratum traits
 struct StratumTraits {
     static constexpr bool MergedMiningSupport = false;
 
     static void miningConfigInitialize(CMiningConfig &cfg, rapidjson::Value &json) {
-        BTC::Stratum::miningConfigInitialize(cfg, json); // Reuse BTC logic
+        BTC::Stratum::miningConfigInitialize(cfg, json);
     }
 };
 
-// ✅ Dash-specific Work type (uses Bitcoin-like structure)
+// ✅ Work type for Dash using BTC logic
 using Stratum = WorkTy<
-    DASH::Proto,
+    Proto,
     BTC::Stratum::HeaderBuilder,
     BTC::Stratum::CoinbaseBuilder,
     BTC::Stratum::Notify,
@@ -56,7 +53,7 @@ using Stratum = WorkTy<
     StratumTraits
 >;
 
-// ✅ Used by Fabric to instantiate Dash jobs
+// ✅ Factory function
 static Stratum::Work *newPrimaryWork(int64_t stratumId,
                                      CBlockTemplate &blockTemplate,
                                      const CMiningConfig &miningCfg,
@@ -73,11 +70,10 @@ static Stratum::Work *newPrimaryWork(int64_t stratumId,
                                                           backend,
                                                           backendId,
                                                           miningCfg));
-
     return work->loadFromTemplate(blockTemplate, error) ? work.release() : nullptr;
 }
 
-// ✅ Plug-in class for StratumInstance<X>
+// ✅ Adapter for StratumInstance<X>
 struct X {
     using Proto = DASH::Proto;
     using Stratum = DASH::Stratum;

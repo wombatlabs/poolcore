@@ -7,12 +7,12 @@ namespace BTC {
 template<>
 void Io<DASH::Proto::Transaction>::serialize(xmstream &stream, const DASH::Proto::Transaction &tx) {
   stream.write<int32_t>(tx.version);
-  IoArray<DASH::Proto::TxIn>::serialize(stream, tx.vin);
-  IoArray<DASH::Proto::TxOut>::serialize(stream, tx.vout);
+  BTC::IoArray<DASH::Proto::TxIn>::serialize(stream, tx.vin);
+  BTC::IoArray<DASH::Proto::TxOut>::serialize(stream, tx.vout);
   stream.write<uint32_t>(tx.lockTime);
 
   if (!tx.vExtraPayload.empty()) {
-    stream.writeVarint(tx.vExtraPayload.size());
+    stream.writeVarSize(tx.vExtraPayload.size());
     stream.write(tx.vExtraPayload.data(), tx.vExtraPayload.size());
   }
 }
@@ -20,12 +20,12 @@ void Io<DASH::Proto::Transaction>::serialize(xmstream &stream, const DASH::Proto
 template<>
 void Io<DASH::Proto::Transaction>::unserialize(xmstream &stream, DASH::Proto::Transaction &tx) {
   tx.version = stream.read<int32_t>();
-  IoArray<DASH::Proto::TxIn>::unserialize(stream, tx.vin);
-  IoArray<DASH::Proto::TxOut>::unserialize(stream, tx.vout);
+  BTC::IoArray<DASH::Proto::TxIn>::unserialize(stream, tx.vin);
+  BTC::IoArray<DASH::Proto::TxOut>::unserialize(stream, tx.vout);
   tx.lockTime = stream.read<uint32_t>();
 
   if (stream.remaining() > 0) {
-    size_t payloadSize = stream.readVarint();
+    size_t payloadSize = stream.readVarSize();
     tx.vExtraPayload.resize(payloadSize);
     stream.read(tx.vExtraPayload.data(), payloadSize);
   }

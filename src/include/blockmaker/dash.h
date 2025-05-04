@@ -4,6 +4,8 @@
 #include "poolcommon/uint256.h"
 #include "blockmaker/x11.h"
 
+template<typename T> struct Io;
+
 namespace DASH {
 namespace Proto {
 
@@ -36,19 +38,33 @@ struct BlockHeader {
     uint32_t nonce;
 };
 
-using AddressTy = std::vector<uint8_t>;  // Dash-style address placeholder
+using AddressTy = std::vector<uint8_t>;
+
+static inline bool decodeHumanReadableAddress(const std::string &addr, uint8_t prefix, AddressTy &out) {
+    // Minimal stub – implement real decoding logic later
+    out.clear();
+    return true;
+}
 
 } // namespace Proto
 
 struct Stratum {
     static constexpr bool MergedMiningSupport = false;
 
-    static void miningConfigInitialize(auto &cfg, const rapidjson::Value &config) {
-        // Minimal stub; extend if needed
+    static void miningConfigInitialize(CMiningConfig &cfg, const rapidjson::Value &config) {
+        // Stub: fill in config from JSON if needed
+    }
+
+    static void workerConfigInitialize(CWorkerConfig &workerCfg, const CThreadConfig &threadCfg) {
+        // Stub: handle thread-specific config
     }
 };
 
 struct X {
+    static constexpr const char* name = "Dash";
+    static constexpr const char* symbol = "DASH";
+    static constexpr uint32_t defaultPort = 9999;
+
     using Transaction = Proto::Transaction;
     using BlockHeader = Proto::BlockHeader;
     using Proto = DASH::Proto;

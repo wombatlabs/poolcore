@@ -26,7 +26,6 @@ public:
     uint32_t lockTime;
     std::vector<uint8_t> vExtraPayload;
 
-    // Compatibility aliases for BTC-like templates
     const std::vector<TxIn> &txIn = vin;
     const std::vector<TxOut> &txOut = vout;
 
@@ -38,18 +37,16 @@ public:
   using CheckConsensusCtx = BTC::Proto::CheckConsensusCtx;
   using ChainParams = BTC::Proto::ChainParams;
 
-  static CCheckStatus checkPow(const BlockHeader &header, uint32_t nBits) {
-    return BTC::checkProofOfWork(header.hash(), nBits);
+  static void checkConsensusInitialize(CheckConsensusCtx &ctx) {
+    BTC::Proto::checkConsensusInitialize(ctx);
   }
 
-  static void checkConsensusInitialize(CheckConsensusCtx&) {}
-
-  static CCheckStatus checkConsensus(const BlockHeader &header, CheckConsensusCtx&, ChainParams&) {
-    return checkPow(header, header.nBits);
+  static CCheckStatus checkConsensus(const BlockHeader &header, CheckConsensusCtx &ctx, ChainParams &params) {
+    return BTC::Proto::checkConsensus(header, ctx, params);
   }
 
-  static CCheckStatus checkConsensus(const Block &block, CheckConsensusCtx&, ChainParams&) {
-    return checkPow(block.header, block.header.nBits);
+  static CCheckStatus checkConsensus(const Block &block, CheckConsensusCtx &ctx, ChainParams &params) {
+    return BTC::Proto::checkConsensus(block, ctx, params);
   }
 
   static double getDifficulty(const BlockHeader &header) {
@@ -67,7 +64,7 @@ public:
 
 class Stratum {
 public:
-  static constexpr double DifficultyFactor = 1;
+  static constexpr double DifficultyFactor = 65536.0;
   static constexpr bool MergedMiningSupport = false;
 
   using Work = BTC::WorkTy<

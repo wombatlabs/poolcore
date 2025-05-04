@@ -98,7 +98,7 @@ public:
     return work->loadFromTemplate(blockTemplate, error) ? work.release() : nullptr;
   }
 
-  static StratumSingleWork *newSecondaryWork(...) { return nullptr; }
+  static StratumSingleWork *newSecondaryWork(int64_t, PoolBackend*, size_t, CMiningConfig&, const std::vector<uint8_t>&, const std::string&, CBlockTemplate&, std::string&) { return nullptr; }
   static StratumMergedWork *newMergedWork(...) { return nullptr; }
 
   static EStratumDecodeStatusTy decodeStratumMessage(CStratumMessage &msg, const char *in, size_t size) {

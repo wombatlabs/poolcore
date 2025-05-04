@@ -1,5 +1,6 @@
 #include "blockmaker/dash.h"
 #include "blockmaker/serialize.h"
+#include "p2putils/xmstream.h"
 
 namespace BTC {
 
@@ -11,7 +12,7 @@ void Io<DASH::Proto::Transaction>::serialize(xmstream &stream, const DASH::Proto
   stream.write<uint32_t>(tx.lockTime);
 
   if (!tx.vExtraPayload.empty()) {
-    serializeVarint(stream, tx.vExtraPayload.size());
+    stream.writeVarint(tx.vExtraPayload.size());
     stream.write(tx.vExtraPayload.data(), tx.vExtraPayload.size());
   }
 }
@@ -23,8 +24,8 @@ void Io<DASH::Proto::Transaction>::unserialize(xmstream &stream, DASH::Proto::Tr
   IoArray<DASH::Proto::TxOut>::unserialize(stream, tx.vout);
   tx.lockTime = stream.read<uint32_t>();
 
-  if (!stream.isEmpty()) {
-    size_t payloadSize = readVarint(stream);
+  if (stream.remaining() > 0) {
+    size_t payloadSize = stream.readVarint();
     tx.vExtraPayload.resize(payloadSize);
     stream.read(tx.vExtraPayload.data(), payloadSize);
   }

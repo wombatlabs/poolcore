@@ -2,11 +2,10 @@
 
 #include "btc.h"
 #include "serialize.h"
-#include "blockmaker/stratumWork.h"
+#include "stratumWork.h"
 
 namespace DASH {
 
-// ====== Protocol Definitions (inherits from BTC) ======
 class Proto {
 public:
   static constexpr const char *TickerName = "DASH";
@@ -27,6 +26,10 @@ public:
     uint32_t lockTime;
     std::vector<uint8_t> vExtraPayload;
 
+    // Compatibility aliases for BTC-like templates
+    const std::vector<TxIn> &txIn = vin;
+    const std::vector<TxOut> &txOut = vout;
+
     bool hasExtraPayload() const {
       return !vExtraPayload.empty();
     }
@@ -36,16 +39,16 @@ public:
   using ChainParams = BTC::Proto::ChainParams;
 
   static CCheckStatus checkPow(const BlockHeader &header, uint32_t nBits) {
-    return BTC::Proto::checkPow(header, nBits);
+    return BTC::checkProofOfWork(header.hash(), nBits);
   }
 
   static void checkConsensusInitialize(CheckConsensusCtx&) {}
 
-  static CCheckStatus checkConsensus(const BlockHeader &header, CheckConsensusCtx &ctx, ChainParams &params) {
+  static CCheckStatus checkConsensus(const BlockHeader &header, CheckConsensusCtx&, ChainParams&) {
     return checkPow(header, header.nBits);
   }
 
-  static CCheckStatus checkConsensus(const Block &block, CheckConsensusCtx &ctx, ChainParams &params) {
+  static CCheckStatus checkConsensus(const Block &block, CheckConsensusCtx&, ChainParams&) {
     return checkPow(block.header, block.header.nBits);
   }
 
@@ -62,11 +65,9 @@ public:
   }
 };
 
-
-// ====== Stratum Logic ======
 class Stratum {
 public:
-  static constexpr double DifficultyFactor = 65536.0;
+  static constexpr double DifficultyFactor = 1;
   static constexpr bool MergedMiningSupport = false;
 
   using Work = BTC::WorkTy<
@@ -128,8 +129,6 @@ public:
   }
 };
 
-
-// ====== Stratum Adapter for StratumInstance<X> ======
 struct X {
   using Proto = DASH::Proto;
   using Stratum = DASH::Stratum;

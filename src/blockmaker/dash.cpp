@@ -1,4 +1,8 @@
 #include "blockmaker/dash.h"
+#include "blockmaker/x11.h"
+
+template<typename T>
+struct Io;
 
 template <>
 void Io<DASH::Proto::Transaction>::serialize(xmstream &dst, const DASH::Proto::Transaction &data, bool /*serializeWitness*/) {

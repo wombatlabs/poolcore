@@ -1,7 +1,7 @@
 #pragma once
 #include "serialize.h"
 #include "xvector.h"
-#include "poolcommon/uint256.h"
+#include "pool/common/uint256.h"
 #include "blockmaker/x11.h"
 
 namespace DASH {
@@ -36,24 +36,32 @@ struct BlockHeader {
     uint32_t nonce;
 };
 
+using AddressTy = std::vector<uint8_t>;  // Dash-style address placeholder
+
 } // namespace Proto
 
-struct X {
-    static constexpr const char* name = "Dash";
-    static constexpr const char* symbol = "DASH";
-    static constexpr uint32_t defaultPort = 9999;
+struct Stratum {
+    static constexpr bool MergedMiningSupport = false;
 
+    static void miningConfigInitialize(auto &cfg, const rapidjson::Value &config) {
+        // Minimal stub; extend if needed
+    }
+};
+
+struct X {
     using Transaction = Proto::Transaction;
     using BlockHeader = Proto::BlockHeader;
+    using Proto = DASH::Proto;
+    using Stratum = DASH::Stratum;
 
     template<typename T>
     static inline void serialize(xmstream &dst, const T &data) {
-        ::Io<T>::serialize(dst, data, false);
+        Io<T>::serialize(dst, data, false);
     }
 
     template<typename T>
     static inline void unserialize(xmstream &src, T &data) {
-        ::Io<T>::unserialize(src, data);
+        Io<T>::unserialize(src, data);
     }
 
     static inline uint256 getPoWHash(const BlockHeader &header) {

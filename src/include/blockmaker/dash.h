@@ -1,7 +1,9 @@
+// dash.h
 #pragma once
 
-#include "blockmaker/btcLike.h"
 #include "blockmaker/btc.h"
+#include "blockmaker/btcLike.h"
+#include "serialize.h"
 
 namespace DASH {
 
@@ -26,67 +28,33 @@ struct Transaction {
   std::vector<uint8_t> vExtraPayload;
 };
 
-struct BlockHeader : public BTC::Proto::BlockHeader {
-  // Inherit everything from BTC::Proto::BlockHeader
-};
-
-struct Block : public BTC::Proto::BlockTemplate<Proto::Transaction> {
-  // Inherit everything from BTC::Proto::BlockTemplate
-};
-
 using AddressTy = std::vector<uint8_t>;
+using BlockHeader = BTC::Proto::BlockHeader;
+using Block = BTC::Proto::BlockTemplate<Transaction>;
 
 static bool decodeHumanReadableAddress(const std::string &addr, const std::vector<uint8_t> &prefix, AddressTy &decoded) {
   return BTC::Proto::decodeHumanReadableAddress(addr, prefix, decoded);
 }
 
 static CCheckStatus checkConsensus(const BlockHeader &header, CheckConsensusCtx &, ChainParams &) {
-  return BTC::checkProofOfWork(header.getHash(), header.nBits);
+  return BTC::checkProofOfWork(header, header.nBits);
 }
 
-static CCheckStatus checkConsensus(const Block &block, CheckConsensusCtx &ctx, ChainParams &params) {
-  return checkConsensus(block.header, ctx, params);
+static CCheckStatus checkConsensus(const Block &block, CheckConsensusCtx &, ChainParams &) {
+  return BTC::checkProofOfWork(block.header, block.header.nBits);
 }
 
 } // namespace Proto
 
-using X = BTC::Coin<
-  Proto::Block,
-  Proto::BlockHeader,
-  Proto::Transaction,
-  Proto::TxIn,
-  Proto::TxOut,
-  Proto::AddressTy
->;
-
-using Stratum = WorkTy<
-  Proto,
-  BTC::Stratum::HeaderBuilder,
-  BTC::Stratum::CoinbaseBuilder,
-  BTC::Stratum::Notify,
-  BTC::Stratum::Prepare
->;
-
-static Stratum::Work *newPrimaryWork(int64_t stratumId,
-                                     PoolBackend *backend,
-                                     unsigned backendIdx,
-                                     const CMiningConfig &config,
-                                     const std::vector<uint8_t> &miningAddress,
-                                     const std::string &coinbaseMsg,
-                                     const CBlockTemplate &blockTemplate,
-                                     std::string &error) {
-  return new typename Stratum::Work(stratumId, backend, backendIdx, config, miningAddress, coinbaseMsg, blockTemplate, error);
-}
-
-static Stratum::Work *newSecondaryWork(int64_t stratumId,
-                                       PoolBackend *backend,
-                                       unsigned backendIdx,
-                                       const CMiningConfig &config,
-                                       const std::vector<uint8_t> &miningAddress,
-                                       const std::string &coinbaseMsg,
-                                       const CBlockTemplate &blockTemplate,
-                                       std::string &error) {
-  return newPrimaryWork(stratumId, backend, backendIdx, config, miningAddress, coinbaseMsg, blockTemplate, error);
-}
+struct X {
+  using Proto = DASH::Proto;
+  using Stratum = WorkTy<
+    Proto,
+    BTC::Stratum::HeaderBuilder,
+    BTC::Stratum::CoinbaseBuilder,
+    BTC::Stratum::Notify,
+    BTC::Stratum::Prepare
+  >;
+};
 
 } // namespace DASH

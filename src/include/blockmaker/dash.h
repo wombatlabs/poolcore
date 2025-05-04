@@ -48,6 +48,17 @@ static inline bool decodeHumanReadableAddress(const std::string &addr, uint8_t p
 
 } // namespace Proto
 
+namespace StratumUtil {
+enum StratumMessageType {
+    Stratum_Unknown = 0,
+    Stratum_Submit,
+    Stratum_Subscribe,
+    Stratum_Authorize,
+    Stratum_SetDifficulty,
+    Stratum_Notify,
+};
+}
+
 struct Stratum {
     static constexpr bool MergedMiningSupport = false;
 
@@ -58,6 +69,12 @@ struct Stratum {
     static void workerConfigInitialize(CWorkerConfig &workerCfg, const ThreadConfig &threadCfg) {
         (void)workerCfg; (void)threadCfg;
     }
+
+    static StratumUtil::StratumMessageType decodeStratumMessage(const uint8_t* data, const uint8_t*& payload, size_t& size) {
+        payload = data;
+        size = 0;
+        return StratumUtil::Stratum_Unknown;
+    }
 };
 
 struct X {
@@ -67,7 +84,8 @@ struct X {
 
     using Transaction = Proto::Transaction;
     using BlockHeader = Proto::BlockHeader;
-    using Proto = DASH::Proto;
+    namespace ProtoNS = DASH::Proto;
+    using Proto = ProtoNS;
     using Stratum = DASH::Stratum;
 
     template<typename T>
@@ -83,7 +101,7 @@ struct X {
     static inline uint256 getPoWHash(const BlockHeader &header) {
         uint8_t hash[32];
         x11_hash((const uint8_t*)&header, sizeof(header), hash);
-        return uint256::fromBlob(hash);
+        return uint256(hash);  // use constructor from buffer
     }
 };
 

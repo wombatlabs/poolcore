@@ -1,7 +1,7 @@
 #pragma once
 #include "serialize.h"
 #include "xvector.h"
-#include "pool/common/uint256.h"
+#include "poolcommon/uint256.h"
 #include "blockmaker/x11.h"
 
 namespace DASH {

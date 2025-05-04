@@ -41,7 +41,7 @@ struct BlockHeader {
 using AddressTy = std::vector<uint8_t>;
 
 static inline bool decodeHumanReadableAddress(const std::string &addr, uint8_t prefix, AddressTy &out) {
-    // Minimal stub – implement real decoding logic later
+    (void)addr; (void)prefix;
     out.clear();
     return true;
 }
@@ -52,11 +52,11 @@ struct Stratum {
     static constexpr bool MergedMiningSupport = false;
 
     static void miningConfigInitialize(CMiningConfig &cfg, const rapidjson::Value &config) {
-        // Stub: fill in config from JSON if needed
+        (void)cfg; (void)config;
     }
 
-    static void workerConfigInitialize(CWorkerConfig &workerCfg, const CThreadConfig &threadCfg) {
-        // Stub: handle thread-specific config
+    static void workerConfigInitialize(CWorkerConfig &workerCfg, const ThreadConfig &threadCfg) {
+        (void)workerCfg; (void)threadCfg;
     }
 };
 
@@ -81,7 +81,9 @@ struct X {
     }
 
     static inline uint256 getPoWHash(const BlockHeader &header) {
-        return x11_hash((const uint8_t*)&header, sizeof(header));
+        uint8_t hash[32];
+        x11_hash((const uint8_t*)&header, sizeof(header), hash);
+        return uint256::fromBlob(hash);
     }
 };
 

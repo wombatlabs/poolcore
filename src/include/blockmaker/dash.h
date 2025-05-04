@@ -46,6 +46,8 @@ static inline bool decodeHumanReadableAddress(const std::string &addr, uint8_t p
     return true;
 }
 
+using BlockHashTy = uint256;
+
 } // namespace Proto
 
 enum StratumMessageType {
@@ -74,6 +76,19 @@ struct Stratum {
         size = 0;
         return Stratum_Unknown;
     }
+
+    static void workerConfigOnSubscribe(CWorkerConfig &cfg, const CMiningConfig &miningCfg,
+                                        const CStratumMessage &, xmstream &, CSubscribeInfo &) {
+        (void)cfg; (void)miningCfg;
+    }
+
+    static void buildSendTargetMessage(xmstream &stream, double difficulty) {
+        (void)stream; (void)difficulty;
+    }
+
+    static void workerConfigSetupVersionRolling(CWorkerConfig &cfg, uint32_t mask) {
+        (void)cfg; (void)mask;
+    }
 };
 
 struct X {
@@ -83,6 +98,7 @@ struct X {
 
     using Transaction = DASH::Proto::Transaction;
     using BlockHeader = DASH::Proto::BlockHeader;
+    using Proto = DASH::Proto;
     using Stratum = DASH::Stratum;
 
     template<typename T>

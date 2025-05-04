@@ -3,7 +3,6 @@
 #include "blockmaker/x11.h"
 
 namespace DASH {
-
 namespace Proto {
 
 // Dash ticker
@@ -37,23 +36,25 @@ struct Transaction {
 CCheckStatus checkPow(const BlockHeader &header, uint32_t nBits);
 
 } // namespace Proto
-
-// Serialization specialization
-namespace DASH {
-template<> struct Io<Proto::Transaction> {
-    static void serialize(xmstream &dst, const Proto::Transaction &data, bool serializeWitness = false);
-    static void unserialize(xmstream &src, Proto::Transaction &data);
-    static void unpack(xmstream &src, DynamicPtr<Proto::Transaction> dst);
-    static void unpackFinalize(DynamicPtr<Proto::Transaction> dst) { /* no-op */ }
-};
 } // namespace DASH
+
+// Serialization specialization for DASH::Proto::Transaction
+namespace BTC {
+template<> struct Io<DASH::Proto::Transaction> {
+    static void serialize(xmstream &dst, const DASH::Proto::Transaction &data, bool serializeWitness = false);
+    static void unserialize(xmstream &src, DASH::Proto::Transaction &data);
+    static void unpack(xmstream &src, DynamicPtr<DASH::Proto::Transaction> dst) { unserialize(src, *dst.ptr()); }
+    static void unpackFinalize(DynamicPtr<DASH::Proto::Transaction> dst) {}
+};
+} // namespace BTC
 
 // Stratum handler for Dash (X11)
 namespace DASH {
 class Stratum {
 public:
     static constexpr double DifficultyFactor = 1.0;
-    using Work = BTC::WorkTy<Proto, BTC::Stratum::HeaderBuilder, BTC::Stratum::CoinbaseBuilder, BTC::Stratum::Notify, BTC::Stratum::Prepare>;
+
+    using Work = BTC::WorkTy<DASH::Proto, BTC::Stratum::HeaderBuilder, BTC::Stratum::CoinbaseBuilder, BTC::Stratum::Notify, BTC::Stratum::Prepare>;
     static constexpr bool MergedMiningSupport = false;
 
     static Work* newPrimaryWork(int64_t stratumId,
@@ -91,11 +92,11 @@ public:
         return BTC::Stratum::decodeStratumMessage(msg, in, size);
     }
 
-    static void miningConfigInitialize(CMiningConfig &miningCfg, const rapidjson::Value &instanceCfg) {
+    static void miningConfigInitialize(CMiningConfig &miningCfg, rapidjson::Value &instanceCfg) {
         BTC::Stratum::miningConfigInitialize(miningCfg, instanceCfg);
     }
 
-    static void workerConfigInitialize(CWorkerConfig &workerCfg, const rapidjson::Value &threadCfg) {
+    static void workerConfigInitialize(CWorkerConfig &workerCfg, ThreadConfig &threadCfg) {
         BTC::Stratum::workerConfigInitialize(workerCfg, threadCfg);
     }
 

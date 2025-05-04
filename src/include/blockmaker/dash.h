@@ -99,6 +99,7 @@ struct X {
     using Transaction = DASH::Proto::Transaction;
     using BlockHeader = DASH::Proto::BlockHeader;
     using Stratum = DASH::Stratum;
+    using Proto = DASH::Proto;  // ✅ REQUIRED FOR X::Proto::...
 
     template<typename T>
     static inline void serialize(xmstream &dst, const T &data) {

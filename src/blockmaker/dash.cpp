@@ -1,5 +1,4 @@
 #include "blockmaker/dash.h"
-#include "blockmaker/x11.h"
 
 template <>
 void Io<DASH::Proto::Transaction>::serialize(xmstream &dst, const DASH::Proto::Transaction &data, bool /*serializeWitness*/) {
@@ -20,8 +19,4 @@ void Io<DASH::Proto::Transaction>::unserialize(xmstream &src, DASH::Proto::Trans
     size_t extraPayloadSize = src.read_varint();
     data.vExtraPayload.resize(extraPayloadSize);
     src.read(data.vExtraPayload.data(), extraPayloadSize);
-}
-
-uint256 getPoWHash(const DASH::Proto::BlockHeader &header) {
-    return getPoWHashX11((const uint8_t *)&header, sizeof(header));
 }

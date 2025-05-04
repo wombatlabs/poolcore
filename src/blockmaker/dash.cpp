@@ -1,26 +1,50 @@
+#include "poolcommon/arith_uint256.h"
 #include "blockmaker/dash.h"
 #include "blockmaker/x11.h"
 
-template<typename T>
-struct Io;
+namespace DASH {
+using namespace Proto;
 
-template <>
-void Io<DASH::Proto::Transaction>::serialize(xmstream &dst, const DASH::Proto::Transaction &data, bool /*serializeWitness*/) {
-    dst.write<int32_t>(data.nVersion);
-    write_array(dst, data.vin);
-    write_array(dst, data.vout);
-    dst.write<uint32_t>(data.nLockTime);
-    dst.write_varint(data.vExtraPayload.size());
-    dst.write(data.vExtraPayload.data(), data.vExtraPayload.size());
+// X11 proof-of-work
+CCheckStatus Proto::checkPow(const BlockHeader &header, uint32_t nBits) {
+    CCheckStatus status;
+    arith_uint256 x11Hash;
+    x11_hash(reinterpret_cast<const uint8_t*>(&header), sizeof(header), x11Hash.begin());
+    status.ShareDiff = BTC::difficultyFromBits(x11Hash.GetCompact(), 29);
+
+    bool fNegative = false, fOverflow = false;
+    arith_uint256 bnTarget;
+    bnTarget.SetCompact(nBits, &fNegative, &fOverflow);
+
+    if (fNegative || bnTarget == 0 || fOverflow)
+        return status;
+    if (x11Hash > bnTarget)
+        return status;
+    status.IsBlock = true;
+    return status;
 }
 
-template <>
-void Io<DASH::Proto::Transaction>::unserialize(xmstream &src, DASH::Proto::Transaction &data) {
-    data.nVersion = src.read<int32_t>();
-    read_array(src, data.vin);
-    read_array(src, data.vout);
-    data.nLockTime = src.read<uint32_t>();
-    size_t extraPayloadSize = src.read_varint();
-    data.vExtraPayload.resize(extraPayloadSize);
-    src.read(data.vExtraPayload.data(), extraPayloadSize);
+// Transaction serialization: no segwit, extra payload at end
+void Io<Transaction>::serialize(xmstream &dst, const Transaction &data, bool /*serializeWitness*/) {
+    DASH::serialize(dst, data.version);
+    DASH::serialize(dst, data.txIn);
+    DASH::serialize(dst, data.txOut);
+    DASH::serialize(dst, data.lockTime);
+    DASH::serialize(dst, data.vExtraPayload);
 }
+
+// Transaction deserialization
+void Io<Transaction>::unserialize(xmstream &src, Transaction &data) {
+    DASH::unserialize(src, data.version);
+    DASH::unserialize(src, data.txIn);
+    DASH::unserialize(src, data.txOut);
+    DASH::unserialize(src, data.lockTime);
+    DASH::unserialize(src, data.vExtraPayload);
+}
+
+// For dynamic allocations
+void Io<Transaction>::unpack(xmstream &src, DynamicPtr<Transaction> dst) {
+    unserialize(src, *dst.ptr());
+}
+
+} // namespace DASH

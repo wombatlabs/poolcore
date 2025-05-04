@@ -1,123 +1,45 @@
-#pragma once
-#include "serialize.h"
-#include "xvector.h"
-#include "poolcommon/uint256.h"
+#include "btc.h"
 #include "blockmaker/x11.h"
-#include "poolinstances/stratum.h"  // for CStratumMessage, CSubscribeInfo
-
-template<typename T> struct Io;
 
 namespace DASH {
-namespace Proto {
 
-struct TxIn {
-    uint256 prevoutHash;
-    uint32_t prevoutN;
-    xvector<uint8_t> scriptSig;
-    uint32_t sequence;
+class Proto {
+public:
+    static constexpr const char *TickerName = "DASH";
+
+    using BlockHashTy = BTC::Proto::BlockHashTy;
+    using TxHashTy    = BTC::Proto::TxHashTy;
+    using AddressTy   = BTC::Proto::AddressTy;
+
+    // Reuse Bitcoin block header
+    using BlockHeader = BTC::Proto::BlockHeader;
+
+    // Dash transaction with extra payload support
+    struct Transaction {
+        int32_t               version;
+        xvector<TxIn>         txIn;
+        xvector<TxOut>        txOut;
+        uint32_t              lockTime;
+        xvector<uint8_t>      vExtraPayload;  // only for special TX types
+
+        // Memory-only fields for caching
+        uint32_t              SerializedDataOffset = 0;
+        uint32_t              SerializedDataSize   = 0;
+        TxHashTy              Hash;
+
+        // Dash has no segwit
+        bool hasWitness() const { return false; }
+    };
+
+    // X11-based proof-of-work check
+    static CCheckStatus checkPow(const BlockHeader &header, uint32_t nBits);
 };
 
-struct TxOut {
-    uint64_t value;
-    xvector<uint8_t> scriptPubKey;
-};
-
-struct Transaction {
-    int32_t nVersion;
-    std::vector<TxIn> vin;
-    std::vector<TxOut> vout;
-    uint32_t nLockTime;
-    xvector<uint8_t> vExtraPayload;
-};
-
-struct BlockHeader {
-    int32_t version;
-    uint256 prevBlockHash;
-    uint256 merkleRoot;
-    uint32_t time;
-    uint32_t bits;
-    uint32_t nonce;
-};
-
-using AddressTy = std::vector<uint8_t>;
-using BlockHashTy = uint256;
-
-static inline bool decodeHumanReadableAddress(const std::string &addr, uint8_t prefix, AddressTy &out) {
-    (void)addr; (void)prefix;
-    out.clear();
-    return true;
-}
-
-} // namespace Proto
-
-enum StratumMessageType {
-    Stratum_Unknown = 0,
-    Stratum_Submit,
-    Stratum_Subscribe,
-    Stratum_Authorize,
-    Stratum_SetDifficulty,
-    Stratum_Notify,
-};
-
-struct Stratum {
-    static constexpr bool MergedMiningSupport = false;
-
-    static void miningConfigInitialize(CMiningConfig &cfg, const rapidjson::Value &config) {
-        (void)cfg; (void)config;
-    }
-
-    static void workerConfigInitialize(CWorkerConfig &workerCfg, const ThreadConfig &threadCfg) {
-        (void)workerCfg; (void)threadCfg;
-    }
-
-    static StratumMessageType decodeStratumMessage(const CStratumMessage &msg, const char*& payload, size_t& size) {
-        (void)msg;
-        payload = nullptr;
-        size = 0;
-        return Stratum_Unknown;
-    }
-
-    static void workerConfigOnSubscribe(CWorkerConfig &cfg, const CMiningConfig &miningCfg,
-                                        const CStratumMessage &, xmstream &, std::string &) {
-        (void)cfg; (void)miningCfg;
-    }
-
-    static void buildSendTargetMessage(xmstream &stream, double difficulty) {
-        (void)stream; (void)difficulty;
-    }
-
-    static void workerConfigSetupVersionRolling(CWorkerConfig &cfg, uint32_t mask) {
-        (void)cfg; (void)mask;
-    }
-};
-
-struct X {
-    static constexpr const char* name = "Dash";
-    static constexpr const char* symbol = "DASH";
-    static constexpr uint32_t defaultPort = 9999;
-
-    using Transaction = DASH::Proto::Transaction;
-    using BlockHeader = DASH::Proto::BlockHeader;
-    using Stratum = DASH::Stratum;
-    using Proto = DASH::Proto;  // ✅ REQUIRED FOR X::Proto::...
-
-    template<typename T>
-    static inline void serialize(xmstream &dst, const T &data) {
-        Io<T>::serialize(dst, data, false);
-    }
-
-    template<typename T>
-    static inline void unserialize(xmstream &src, T &data) {
-        Io<T>::unserialize(src, data);
-    }
-
-    static inline uint256 getPoWHash(const BlockHeader &header) {
-        uint8_t hash[32];
-        x11_hash((const uint8_t*)&header, sizeof(header), hash);
-        uint256 result;
-        memcpy(result.begin(), hash, 32);
-        return result;
-    }
+// Serializer specialization for Transaction
+template<> struct Io<Proto::Transaction> {
+    static void serialize(xmstream &dst, const Proto::Transaction &data, bool serializeWitness = false);
+    static void unserialize(xmstream &src, Proto::Transaction &data);
+    static void unpack(xmstream &src, DynamicPtr<Proto::Transaction> dst);
 };
 
 } // namespace DASH

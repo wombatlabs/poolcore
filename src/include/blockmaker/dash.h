@@ -1,7 +1,7 @@
 #pragma once
 #include "serialize.h"
 #include "xvector.h"
-#include "poolcommon/uint256.h"
+#include "uint256.h"
 #include "blockmaker/x11.h"
 
 template<typename T> struct Io;
@@ -68,7 +68,7 @@ struct Stratum {
         (void)workerCfg; (void)threadCfg;
     }
 
-    static StratumMessageType decodeStratumMessage(const CStratumMessage &msg, const uint8_t*& payload, size_t& size) {
+    static StratumMessageType decodeStratumMessage(const CStratumMessage &msg, const char*& payload, size_t& size) {
         (void)msg;
         payload = nullptr;
         size = 0;
@@ -81,9 +81,8 @@ struct X {
     static constexpr const char* symbol = "DASH";
     static constexpr uint32_t defaultPort = 9999;
 
-    using Transaction = Proto::Transaction;
-    using BlockHeader = Proto::BlockHeader;
-    using Proto = DASH::Proto;
+    using Transaction = DASH::Proto::Transaction;
+    using BlockHeader = DASH::Proto::BlockHeader;
     using Stratum = DASH::Stratum;
 
     template<typename T>

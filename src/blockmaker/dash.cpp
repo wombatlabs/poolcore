@@ -1,5 +1,5 @@
 #include "blockmaker/dash.h"
-#include "serialize.h"
+#include "blockmaker/serialize.h"
 
 namespace BTC {
 

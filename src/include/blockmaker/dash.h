@@ -64,7 +64,7 @@ public:
 
 class Stratum {
 public:
-  static constexpr double DifficultyFactor = 65536.0;
+  static constexpr double DifficultyFactor = 1;
   static constexpr bool MergedMiningSupport = false;
 
   using Work = BTC::WorkTy<

@@ -81,7 +81,7 @@ struct X {
     }
 
     static inline uint256 getPoWHash(const BlockHeader &header) {
-        return getPoWHashX11((const uint8_t*)&header, sizeof(header));
+        return x11_hash((const uint8_t*)&header, sizeof(header));
     }
 };
 

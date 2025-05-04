@@ -1,27 +1,27 @@
-// dash.cpp
 #include "blockmaker/dash.h"
-#include "blockmaker/serialize.h"
-
-namespace BTC {
+#include "blockmaker/x11.h"
 
 template <>
-void Io<DASH::Proto::Transaction>::serialize(xmstream &stream, const DASH::Proto::Transaction &tx) {
-  serialize(stream, tx.version);
-  serialize(stream, tx.type);
-  serialize(stream, tx.vin);
-  serialize(stream, tx.vout);
-  serialize(stream, tx.lockTime);
-  serialize(stream, tx.extraPayload);
+void Io<DASH::Proto::Transaction>::serialize(xmstream &dst, const DASH::Proto::Transaction &data, bool /*serializeWitness*/) {
+    dst.write<int32_t>(data.nVersion);
+    write_array(dst, data.vin);
+    write_array(dst, data.vout);
+    dst.write<uint32_t>(data.nLockTime);
+    dst.write_varint(data.vExtraPayload.size());
+    dst.write(data.vExtraPayload.data(), data.vExtraPayload.size());
 }
 
 template <>
-void Io<DASH::Proto::Transaction>::unserialize(xmstream &stream, DASH::Proto::Transaction &tx) {
-  unserialize(stream, tx.version);
-  unserialize(stream, tx.type);
-  unserialize(stream, tx.vin);
-  unserialize(stream, tx.vout);
-  unserialize(stream, tx.lockTime);
-  unserialize(stream, tx.extraPayload);
+void Io<DASH::Proto::Transaction>::unserialize(xmstream &src, DASH::Proto::Transaction &data) {
+    data.nVersion = src.read<int32_t>();
+    read_array(src, data.vin);
+    read_array(src, data.vout);
+    data.nLockTime = src.read<uint32_t>();
+    size_t extraPayloadSize = src.read_varint();
+    data.vExtraPayload.resize(extraPayloadSize);
+    src.read(data.vExtraPayload.data(), extraPayloadSize);
 }
 
-} // namespace BTC
+uint256 getPoWHash(const DASH::Proto::BlockHeader &header) {
+    return getPoWHashX11((const uint8_t *)&header, sizeof(header));
+}

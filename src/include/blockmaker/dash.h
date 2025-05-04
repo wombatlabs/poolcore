@@ -1,60 +1,45 @@
-// dash.h
 #pragma once
-
-#include "blockmaker/btc.h"
-#include "blockmaker/btcLike.h"
 #include "serialize.h"
+#include "xvector.h"
+#include "uint256.h"
 
 namespace DASH {
-
 namespace Proto {
 
 struct TxIn {
-  BTC::Proto::OutPoint previousOutput;
-  std::vector<uint8_t> scriptSig;
-  uint32_t sequence;
+    uint256 prevoutHash;
+    uint32_t prevoutN;
+    xvector<uint8_t> scriptSig;
+    uint32_t sequence;
 };
 
 struct TxOut {
-  int64_t value;
-  std::vector<uint8_t> scriptPubKey;
+    uint64_t value;
+    xvector<uint8_t> scriptPubKey;
 };
 
 struct Transaction {
-  int32_t version;
-  std::vector<TxIn> vin;
-  std::vector<TxOut> vout;
-  uint32_t lockTime;
-  std::vector<uint8_t> vExtraPayload;
+    int32_t nVersion;
+    std::vector<TxIn> vin;
+    std::vector<TxOut> vout;
+    uint32_t nLockTime;
+    xvector<uint8_t> vExtraPayload;  // Dash-specific
 };
 
-using AddressTy = std::vector<uint8_t>;
-using BlockHeader = BTC::Proto::BlockHeader;
-using Block = BTC::Proto::BlockTemplate<Transaction>;
-
-static bool decodeHumanReadableAddress(const std::string &addr, const std::vector<uint8_t> &prefix, AddressTy &decoded) {
-  return BTC::Proto::decodeHumanReadableAddress(addr, prefix, decoded);
-}
-
-static CCheckStatus checkConsensus(const BlockHeader &header, CheckConsensusCtx &, ChainParams &) {
-  return BTC::checkProofOfWork(header, header.nBits);
-}
-
-static CCheckStatus checkConsensus(const Block &block, CheckConsensusCtx &, ChainParams &) {
-  return BTC::checkProofOfWork(block.header, block.header.nBits);
-}
+struct BlockHeader {
+    int32_t version;
+    uint256 prevBlockHash;
+    uint256 merkleRoot;
+    uint32_t time;
+    uint32_t bits;
+    uint32_t nonce;
+};
 
 } // namespace Proto
-
-struct X {
-  using Proto = DASH::Proto;
-  using Stratum = WorkTy<
-    Proto,
-    BTC::Stratum::HeaderBuilder,
-    BTC::Stratum::CoinbaseBuilder,
-    BTC::Stratum::Notify,
-    BTC::Stratum::Prepare
-  >;
-};
-
 } // namespace DASH
+
+template <>
+void Io<DASH::Proto::Transaction>::serialize(xmstream &dst, const DASH::Proto::Transaction &data, bool serializeWitness);
+
+template <>
+void Io<DASH::Proto::Transaction>::unserialize(xmstream &src, DASH::Proto::Transaction &data);

@@ -1,87 +1,106 @@
-#include "poolcommon/arith_uint256.h"
 #include "blockmaker/dash.h"
+#include "blockmaker/merkleTree.h"
+#include "blockmaker/serializeJson.h"
 #include "blockmaker/x11.h"
 #include "blockmaker/btc.h"
 
-// Existing POW check
-CCheckStatus DASH::Proto::checkPow(const Dash::Proto::BlockHeader &header, uint32_t nBits) {
-    CCheckStatus status;
-    // Compute X11 hash
+static const unsigned char pchMergedMiningHeader[] = { 0xfa, 0xbe, 'm', 'm' };
+
+static uint32_t getExpectedIndex(uint32_t nNonce, int nChainId, unsigned h) {
+    uint32_t r = nNonce;
+    r = r * 1103515245 + 12345;
+    r += nChainId;
+    r = r * 1103515245 + 12345;
+    return r % (1u << h);
+}
+
+// X11 proof-of-work
+CCheckStatus DASH::Proto::checkPow(const DASH::Proto::BlockHeader& header, uint32_t nBits) {
     arith_uint256 x11Hash;
     x11_hash(reinterpret_cast<const uint8_t*>(&header), sizeof(header), x11Hash.begin());
-    // Calculate share difficulty from bits
+    CCheckStatus status;
     status.ShareDiff = BTC::difficultyFromBits(x11Hash.GetCompact(), 29);
-
-    // Build target from compact
-    bool fNegative = false;
-    bool fOverflow = false;
+    bool fNegative = false, fOverflow = false;
     arith_uint256 bnTarget;
     bnTarget.SetCompact(nBits, &fNegative, &fOverflow);
-
-    // Range check
-    if (fNegative || bnTarget == 0 || fOverflow)
+    if (fNegative || bnTarget == 0 || fOverflow || x11Hash > bnTarget)
         return status;
-
-    // Proof-of-work check
-    if (x11Hash > bnTarget)
-        return status;
-
     status.IsBlock = true;
     return status;
 }
 
-// MergedWork implementation
-DASH::Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
-                                     CSingleWork *btcWork,
-                                     CSingleWork *dashWork,
-                                     MiningConfig &miningCfg)
-  : CMergedWork(stratumWorkId, btcWork, dashWork, miningCfg)
+// Construct merged work: Bitcoin primary + Dash aux
+DASH::Stratum::MergedWork::MergedWork(uint64_t workId,
+                                     CSingleWork* btcW,
+                                     CSingleWork* dashW,
+                                     MiningConfig& cfg)
+  : CMergedWork(workId, btcW, dashW, cfg)
 {
-  // 1) Save mining cfg
-  miningCfg_ = miningCfg;
+    // Bitcoin context
+    btcHeader_       = btcW->Header;
+    btcLegacy_       = btcW->Legacy;
+    btcWitness_      = btcW->Witness;
+    btcMerklePath_   = btcW->MerklePath;
+    btcConsensusCtx_ = btcW->ConsensusCtx;
 
-  // 2) Extract Bitcoin header + merkle path
-  BTCHeader_     = btcWork->header_;
-  BTCWitness_    = btcWork->witness_;
-  BTCConsensusCtx_ = btcWork->consensusCtx_;
+    // Prepare Dash
+    dashW->Header.nVersion |= DASH::Proto::VERSION_AUXPOW;
+    dashHeader_       = dashW->Header;
+    dashW->buildCoinbaseTx(nullptr, 0, cfg, dashLegacy_, dashWitness_);
+    dashConsensusCtx_ = dashW->ConsensusCtx;
 
-  // 3) Prepare Dash header for AuxPoW
-  dashWork->header_.nVersion |= DASH::Proto::VERSION_AUXPOW;
-  DASHHeader_      = dashWork->header_;
-  dashWork->buildCoinbaseTx(nullptr, 0, miningCfg, DASHHeader_, DASHWitness_);
-  DASHConsensusCtx_ = dashWork->consensusCtx_;
+    // Compute hashBlock (big-endian reversed)
+    auto h = dashHeader_.GetHash();
+    std::reverse(h.begin(), h.end());
+    dashHeader_.hashBlock = h;
 
-  // 4) Compute hashBlock (reversed)
-  auto hash = DASHHeader_.GetHash();
-  std::reverse(hash.begin(), hash.end());
-  DASHHeader_.hashBlock = hash;
-
-  // 5) Merkle branches
-  DASHHeader_.merkleBranch = BTCHeader_.merkleBranch;
-  DASHHeader_.index       = 0;
-  DASHHeader_.chainMerkleBranch.clear();
-  DASHHeader_.chainIndex = 0;
-
-  // 6) Parent block header
-  DASHHeader_.parentBlock = BTC::Proto::BlockHeader();
+    // Aux merkle
+    dashMerklePath_ = btcMerklePath_;
+    dashHeader_.Index = 0;
+    dashHeader_.chainMerkleBranch.clear();
+    dashHeader_.chainIndex = 0;
+    dashHeader_.parentBlock = btcHeader_;
 }
 
-bool DASH::Stratum::MergedWork::prepareForSubmit(const WorkerConfig &workerCfg,
-                                                const StratumMessage &msg)
+bool DASH::Stratum::MergedWork::prepareForSubmit(const WorkerConfig& worker,
+                                                const StratumMessage& msg)
 {
-  // 1) Submit the Bitcoin job
-  if (!BTC::Stratum::Work::prepareForSubmitImpl(
-         BTCHeader_, BTCHeader_.nVersion, BTCWitness_, workerCfg, miningCfg_, msg))
-    return false;
+    // Submit Bitcoin share
+    if (!BTC::Stratum::Work::prepareForSubmitImpl(
+           btcHeader_, btcLegacy_, btcWitness_, btcMerklePath_,
+           worker, miningCfg_, msg))
+        return false;
 
-  // 2) Attach AuxPoW to Dash submission
-  xmstream &cb = BTCWitness_.Data;
-  cb.seekSet(0);
-  BTC::Io<Transaction>::unserialize(cb, DASHHeader_.parentCoinbaseTx);
+    // Extract aux coinbase from BTC
+    xmstream& cb = btcWitness_.Data;
+    cb.seekSet(0);
+    BTC::Io<DASH::Proto::BlockHeader>::unserialize(cb, dashHeader_);
 
-  // 3) Inject AuxPoW fields into stream for Dash
-  xmstream &stream = DASHWitness_.Data;
-  BTC::Io<DASH::Proto::BlockHeader>::serialize(stream, DASHHeader_);
-
-  return true;
+    // Append aux header for Dash
+    xmstream& out = dashWitness_.Data;
+    BTC::Io<DASH::Proto::BlockHeader>::serialize(out, dashHeader_);
+    return true;
 }
+
+// JSON serialization for Dash headers
+namespace BTC {
+template<> struct Io<DASH::Proto::BlockHeader> {
+    static void serialize(xmstream& dst, const DASH::Proto::BlockHeader& h) {
+        serializeJson(dst, "hashPrevBlock", h.hashPrevBlock); dst.write(',');
+        serializeJson(dst, "hashMerkleRoot", h.hashMerkleRoot); dst.write(',');
+        serializeJson(dst, "time", h.nTime); dst.write(',');
+        serializeJson(dst, "bits", h.nBits); dst.write(',');
+        serializeJson(dst, "nonce", h.nNonce); dst.write(',');
+        serializeJson(dst, "parentCoinbaseTx", h.parentCoinbaseTx); dst.write(',');
+        serializeJson(dst, "hashBlock", h.hashBlock); dst.write(',');
+        serializeJson(dst, "merkleBranch", h.merkleBranch); dst.write(',');
+        serializeJson(dst, "Index", h.Index); dst.write(',');
+        serializeJson(dst, "chainMerkleBranch", h.chainMerkleBranch); dst.write(',');
+        serializeJson(dst, "chainIndex", h.chainIndex); dst.write(',');
+        dst.write("\"parentBlock\":{"); serializeJsonInside(dst, h.parentBlock); dst.write('}');
+    }
+    static void unserialize(xmstream& src, DASH::Proto::BlockHeader& h) {
+        DASH::Proto::unserialize(src, h);
+    }
+};
+} // namespace BTC

@@ -13,14 +13,13 @@ class Proto {
 public:
     static constexpr const char* TickerName = "DASH";
 
-    using BlockHashTy      = BTC::Proto::BlockHashTy;
-    using TxHashTy         = BTC::Proto::TxHashTy;
-    using AddressTy        = BTC::Proto::AddressTy;
-    using BlockHeader      = BTC::Proto::BlockHeader;
-    using Block            = BTC::Proto::Block;
-    using TxIn             = BTC::Proto::TxIn;
-    using TxOut            = BTC::Proto::TxOut;
-    // Dash does not use segwit TxWitness
+    using BlockHashTy = BTC::Proto::BlockHashTy;
+    using TxHashTy    = BTC::Proto::TxHashTy;
+    using AddressTy   = BTC::Proto::AddressTy;
+    using BlockHeader = BTC::Proto::BlockHeader;
+    using Block       = BTC::Proto::Block;
+    using TxIn        = BTC::Proto::TxIn;
+    using TxOut       = BTC::Proto::TxOut;
 
     struct Transaction {
         int32_t           version;
@@ -61,29 +60,36 @@ public:
     }
 };
 
+} // namespace DASH
+
 namespace BTC {
+
 // Serialize/unserialize DASH transactions
 template<>
 struct Io<DASH::Proto::Transaction> {
     static void serialize(xmstream &dst, const DASH::Proto::Transaction &data, bool /*serializeWitness*/ = false) {
-        DASH::serialize(dst, data.version);
-        DASH::serialize(dst, data.txIn);
-        DASH::serialize(dst, data.txOut);
-        DASH::serialize(dst, data.lockTime);
-        DASH::serialize(dst, data.vExtraPayload);
+        BTC::serialize(dst, data.version);
+        BTC::serialize(dst, data.txIn);
+        BTC::serialize(dst, data.txOut);
+        BTC::serialize(dst, data.lockTime);
+        BTC::serialize(dst, data.vExtraPayload);
     }
+
     static void unserialize(xmstream &src, DASH::Proto::Transaction &data) {
-        DASH::unserialize(src, data.version);
-        DASH::unserialize(src, data.txIn);
-        DASH::unserialize(src, data.txOut);
-        DASH::unserialize(src, data.lockTime);
-        DASH::unserialize(src, data.vExtraPayload);
+        BTC::unserialize(src, data.version);
+        BTC::unserialize(src, data.txIn);
+        BTC::unserialize(src, data.txOut);
+        BTC::unserialize(src, data.lockTime);
+        BTC::unserialize(src, data.vExtraPayload);
     }
+
     static void unpack(xmstream &src, DynamicPtr<DASH::Proto::Transaction> dst) {
         unserialize(src, *dst.ptr());
     }
+
     static void unpackFinalize(DynamicPtr<DASH::Proto::Transaction>) {}
 };
+
 } // namespace BTC
 
 // Stratum support for Dash (X11)
@@ -133,19 +139,24 @@ public:
         return nullptr;
     }
 
-    static EStratumDecodeStatusTy decodeStratumMessage(CStratumMessage &msg, const char *in, size_t size) {
+    static EStratumDecodeStatusTy decodeStratumMessage(CStratumMessage &msg,
+                                                        const char *in,
+                                                        size_t size) {
         return BTC::Stratum::decodeStratumMessage(msg, in, size);
     }
 
-    static void miningConfigInitialize(CMiningConfig &miningCfg, rapidjson::Value &instanceCfg) {
+    static void miningConfigInitialize(CMiningConfig &miningCfg,
+                                       rapidjson::Value &instanceCfg) {
         BTC::Stratum::miningConfigInitialize(miningCfg, instanceCfg);
     }
 
-    static void workerConfigInitialize(CWorkerConfig &workerCfg, ThreadConfig &threadCfg) {
+    static void workerConfigInitialize(CWorkerConfig &workerCfg,
+                                       ThreadConfig &threadCfg) {
         BTC::Stratum::workerConfigInitialize(workerCfg, threadCfg);
     }
 
-    static void workerConfigSetupVersionRolling(CWorkerConfig &workerCfg, uint32_t versionMask) {
+    static void workerConfigSetupVersionRolling(CWorkerConfig &workerCfg,
+                                                uint32_t versionMask) {
         BTC::Stratum::workerConfigSetupVersionRolling(workerCfg, versionMask);
     }
 
@@ -154,7 +165,11 @@ public:
                                         CStratumMessage &msg,
                                         xmstream &out,
                                         std::string &subscribeInfo) {
-        BTC::Stratum::workerConfigOnSubscribe(workerCfg, miningCfg, msg, out, subscribeInfo);
+        BTC::Stratum::workerConfigOnSubscribe(workerCfg,
+                                              miningCfg,
+                                              msg,
+                                              out,
+                                              subscribeInfo);
     }
 
     static void buildSendTargetMessage(xmstream &stream, double difficulty) {
@@ -167,10 +182,14 @@ struct X {
     using Stratum = DASH::Stratum;
 
     template<typename T>
-    static inline void serialize(xmstream &dst, const T &data) { BTC::Io<T>::serialize(dst, data); }
+    static inline void serialize(xmstream &dst, const T &data) {
+        BTC::Io<T>::serialize(dst, data);
+    }
 
     template<typename T>
-    static inline void unserialize(xmstream &src, T &data) { BTC::Io<T>::unserialize(src, data); }
+    static inline void unserialize(xmstream &src, T &data) {
+        BTC::Io<T>::unserialize(src, data);
+    }
 };
 
 } // namespace DASH

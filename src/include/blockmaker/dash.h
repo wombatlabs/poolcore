@@ -1,5 +1,8 @@
-#include "btc.h"
-#include "poolinstances/stratumWorkStorage.h"
+// dependencies/poolcore/src/include/blockmaker/dash.h
+#pragma once
+
+#include "btc.h"                   // pulls in BTC::Proto, BTC::WorkTy, etc.
+#include "blockmaker/stratumWork.h"// for StratumSingleWorkEmpty, StratumMergedWorkEmpty
 
 namespace DASH {
 
@@ -7,135 +10,109 @@ class Proto {
 public:
     static constexpr const char* TickerName = "DASH";
 
-    using BlockHashTy       = BTC::Proto::BlockHashTy;
-    using TxHashTy          = BTC::Proto::TxHashTy;
-    using AddressTy         = BTC::Proto::AddressTy;
-    using BlockHeader       = BTC::Proto::BlockHeader;
-    using CheckConsensusCtx = BTC::Proto::CheckConsensusCtx;
-    using ChainParams       = BTC::Proto::ChainParams;
-    using Transaction       = BTC::Proto::Transaction;
+    using BlockHashTy = BTC::Proto::BlockHashTy;
+    using TxHashTy    = BTC::Proto::TxHashTy;
+    using AddressTy   = BTC::Proto::AddressTy;
 
-    static CCheckStatus   checkPow(const BlockHeader& header, uint32_t nBits);
-    static void           checkConsensusInitialize(CheckConsensusCtx& ctx) {}
-    static CCheckStatus   checkConsensus(const BlockHeader& header, CheckConsensusCtx& ctx, ChainParams& params);
-    static double         getDifficulty(const BlockHeader& header);
-    static double         expectedWork(const BlockHeader& header, const CheckConsensusCtx& ctx);
-    static double         getBlockTime(const BlockHeader& header);
-    static void           setBlockTime(BlockHeader& header, uint32_t time);
-    static uint32_t       getTime(const BlockHeader& header);
+    // AuxPoW version bit
+    static const int32_t VERSION_AUXPOW = (1 << 8);
+
+    // Extended header: base BTC + AuxPoW fields
+    struct BlockHeader : public BTC::Proto::BlockHeader {
+        BTC::Proto::Transaction         parentCoinbaseTx;
+        BlockHashTy                     hashBlock;
+        std::vector<BlockHashTy>        merkleBranch;
+        uint32_t                        index;
+        std::vector<BlockHashTy>        chainMerkleBranch;
+        uint32_t                        chainIndex;
+        BTC::Proto::BlockHeader         parentBlock;
+    };
+
+    static CCheckStatus checkPow(const BlockHeader& header, uint32_t nBits);
+    static void          checkConsensusInitialize(BTC::Proto::CheckConsensusCtx& ctx) { /* nop */ }
+    static CCheckStatus  checkConsensus(const BlockHeader& header,
+                                        BTC::Proto::CheckConsensusCtx& ctx,
+                                        BTC::Proto::ChainParams& params);
+    static double        expectedWork(const BlockHeader& header,
+                                      const BTC::Proto::CheckConsensusCtx& ctx);
+    static double        getDifficulty(const BlockHeader& header);
+    static uint32_t      getTime(const BlockHeader& header);
+    static void          setTime(BlockHeader& header, uint32_t t);
 };
 
 class Stratum {
 public:
     static constexpr double DifficultyFactor = 1.0;
 
-    using MiningConfig   = BTC::Stratum::MiningConfig;
-    using WorkerConfig   = BTC::Stratum::WorkerConfig;
-    using StratumMessage = BTC::Stratum::StratumMessage;
+    using MiningConfig   = BTC::CMiningConfig;
+    using WorkerConfig   = BTC::CWorkerConfig;
+    using StratumMessage = BTC::CStratumMessage;
 
-    using CSingleWork = StratumSingleWork<
+    // Base classes for work units
+    using CSingleWork = StratumSingleWorkEmpty<
         Proto::BlockHashTy,
         MiningConfig,
         WorkerConfig,
         StratumMessage
     >;
-    using CMergedWork = StratumMergedWork<
+    using CMergedWork = StratumMergedWorkEmpty<
         Proto::BlockHashTy,
         MiningConfig,
         WorkerConfig,
         StratumMessage
     >;
 
-    using Work       = BTC::WorkTy<
+    // Primary “real” work generator
+    using Work = BTC::WorkTy<
         Proto,
         BTC::Stratum::HeaderBuilder,
         BTC::Stratum::CoinbaseBuilder,
         BTC::Stratum::Notify,
-        BTC::Stratum::Prepare,
-        MiningConfig,
-        WorkerConfig,
-        StratumMessage
+        BTC::Stratum::Prepare
     >;
-    using SecondWork = BTC::Stratum::Work;  // Bitcoin core work
 
+    // For merged mining
+    using SecondWork = BTC::Stratum::Work;  // Bitcoin
     class MergedWork : public CMergedWork {
     public:
         MergedWork(uint64_t workId,
-                   CSingleWork* btcFirst,
-                   CSingleWork* dashSecond,
+                   CSingleWork* first,
+                   CSingleWork* second,
                    MiningConfig& cfg);
-
+        virtual bool prepareForSubmit(const WorkerConfig& worker,
+                                      const StratumMessage& msg) override;
         virtual Proto::BlockHashTy shareHash() override {
             return dashWork()->shareHash();
         }
-
-        virtual bool prepareForSubmit(const WorkerConfig& worker,
-                                      const StratumMessage& msg) override;
-
-        virtual void buildBlock(size_t idx, xmstream& out) override {
-            if (idx == 0)
-                btcWork()->buildBlockImpl(btcHeader_, btcLegacy_, btcWitness_, btcMerklePath_, out);
-            else
-                dashWork()->buildBlockImpl(dashHeader_, dashLegacy_, dashWitness_, dashMerklePath_, out);
-        }
-
-        virtual CCheckStatus checkConsensus(size_t idx) override {
-            if (idx == 0)
-                return BTC::Stratum::Work::checkConsensusImpl(btcHeader_, btcConsensusCtx_);
-            return DASH::Proto::checkConsensus(dashHeader_, dashConsensusCtx_, *chainParams_);
-        }
+        // optionally override buildBlock/checkConsensus if needed…
 
     private:
-        CSingleWork* btcWork()  { return static_cast<CSingleWork*>(firstWork_); }
+        CSingleWork* btcWork()  { return static_cast<CSingleWork*>(firstWork_);  }
         CSingleWork* dashWork() { return static_cast<CSingleWork*>(secondWork_); }
 
-        // Bitcoin context
-        BTC::Proto::BlockHeader            btcHeader_;
-        BTC::CoinbaseTx                    btcLegacy_;
-        BTC::CoinbaseTx                    btcWitness_;
-        std::vector<Proto::BlockHashTy>    btcMerklePath_;
-        Proto::CheckConsensusCtx           btcConsensusCtx_;
-
-        // Dash context
-        Proto::BlockHeader                 dashHeader_;
-        BTC::CoinbaseTx                    dashLegacy_;
-        BTC::CoinbaseTx                    dashWitness_;
-        std::vector<Proto::BlockHashTy>    dashMerklePath_;
-        Proto::CheckConsensusCtx           dashConsensusCtx_;
-
-        MiningConfig                       miningCfg_;
-        ChainParams*                       chainParams_;
+        // you’ll use these members in your .cpp
     };
 
     static constexpr bool MergedMiningSupport = true;
-    static bool isMainBackend(const std::string&) { return true; }
-    static bool keepOldWorkForBackend(const std::string&) { return false; }
 
-    static void buildSendTargetMessage(xmstream& s, double diff, double factor) {
-        BTC::Stratum::buildSendTargetMessageImpl(s, diff, factor);
-    }
-};
-
-struct X {
-    using Proto   = DASH::Proto;
-    using Stratum = DASH::Stratum;
-
-    template<typename T>
-    static inline void serialize(xmstream& src, const T& data) {
-        BTC::Io<T>::serialize(src, data);
+    static void buildSendTargetMessage(xmstream& s,
+                                       double difficulty,
+                                       double factor) {
+        BTC::Stratum::buildSendTargetMessageImpl(s, difficulty, factor);
     }
 
-    template<typename T>
-    static inline void unserialize(xmstream& dst, T& data) {
-        BTC::Io<T>::unserialize(dst, data);
+    // hook called by StratumInstance to initialize config from JSON
+    static void miningConfigInitialize(MiningConfig& cfg,
+                                       const rapidjson::Value& v) {
+        BTC::Stratum::miningConfigInitialize(cfg, v);
+    }
+
+    // hook to turn a string+prefix into AddressTy
+    static bool decodeHumanReadableAddress(const std::string& str,
+                                           uint8_t prefix,
+                                           AddressTy& out) {
+        return BTC::Proto::decodeHumanReadableAddress(str, prefix, out);
     }
 };
 
 } // namespace DASH
-
-namespace BTC {
-template<> struct Io<DASH::Proto::BlockHeader> {
-    static void serialize(xmstream& dst, const DASH::Proto::BlockHeader& data);
-    static void unserialize(xmstream& src, DASH::Proto::BlockHeader& data);
-};
-} // namespace BTC

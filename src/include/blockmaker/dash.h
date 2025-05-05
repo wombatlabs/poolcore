@@ -98,6 +98,9 @@ namespace DASH {
 class Stratum {
 public:
     static constexpr double DifficultyFactor = 1.0;
+    using MiningConfig = BTC::Stratum::MiningConfig;
+    using WorkerConfig = BTC::Stratum::WorkerConfig;
+    using StratumMessage = BTC::Stratum::StratumMessage;
     /*using Work = BTC::WorkTy<DASH::Proto,
                              BTC::Stratum::HeaderBuilder,
                              BTC::Stratum::CoinbaseBuilder,

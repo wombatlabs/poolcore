@@ -195,7 +195,7 @@ public:
       info.Algorithm = "scrypt";
       info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 
-      info.ResetWorkOnBlockChange = false;
+
 
     } else if (strcmp(coinName, "BELLS.testnet") == 0) {
       info.Name = "BELLS.testnet";
@@ -212,7 +212,7 @@ public:
       info.Algorithm = "scrypt";
       info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 
-      info.ResetWorkOnBlockChange = false;
+
 
     } else if (strcmp(coinName, "BSV") == 0) {
       info.Name = "BSV";
@@ -449,7 +449,7 @@ public:
       info.Algorithm = "scrypt";
       info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 
-      info.ResetWorkOnBlockChange = false;
+
 
     } else if (strcmp(coinName, "DINGO.testnet") == 0) {
       info.Name = "DINGO.testnet";
@@ -466,7 +466,7 @@ public:
       info.Algorithm = "scrypt";
       info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 
-      info.ResetWorkOnBlockChange = false;
+
 
     } else if (strcmp(coinName, "DOGE") == 0) {
       info.Name = "DOGE";
@@ -631,7 +631,7 @@ public:
       info.Algorithm = "scrypt";
       info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 
-      info.ResetWorkOnBlockChange = false;
+
 
     } else if (strcmp(coinName, "JKC.testnet") == 0) {
       info.Name = "JKC.testnet";
@@ -648,7 +648,7 @@ public:
       info.Algorithm = "scrypt";
       info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 
-      info.ResetWorkOnBlockChange = false;
+
 
     } else if (strcmp(coinName, "KMD") == 0) {
       info.Name = "KMD";
@@ -735,7 +735,7 @@ public:
       info.Algorithm = "scrypt";
       info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 
-      info.ResetWorkOnBlockChange = false;
+
 
     } else if (strcmp(coinName, "LKY.testnet") == 0) {
       info.Name = "LKY.testnet";
@@ -752,7 +752,7 @@ public:
       info.Algorithm = "scrypt";
       info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 
-      info.ResetWorkOnBlockChange = false;
+
 
     } else if (strcmp(coinName, "LTC") == 0) {
       info.Name = "LTC";
@@ -858,7 +858,7 @@ public:
       info.Algorithm = "scrypt";
       info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 
-      info.ResetWorkOnBlockChange = false;
+
 
     } else if (strcmp(coinName, "PEP.testnet") == 0) {
       info.Name = "PEP.testnet";
@@ -875,7 +875,7 @@ public:
       info.Algorithm = "scrypt";
       info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 
-      info.ResetWorkOnBlockChange = false;
+
 
     } else if (strcmp(coinName, "SPACE") == 0) {
       info.Name = "SPACE";

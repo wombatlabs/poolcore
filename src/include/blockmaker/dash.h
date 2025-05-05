@@ -98,11 +98,12 @@ namespace DASH {
 class Stratum {
 public:
     static constexpr double DifficultyFactor = 1.0;
-    using Work = BTC::WorkTy<DASH::Proto,
+    /*using Work = BTC::WorkTy<DASH::Proto,
                              BTC::Stratum::HeaderBuilder,
                              BTC::Stratum::CoinbaseBuilder,
                              BTC::Stratum::Notify,
-                             BTC::Stratum::Prepare>;
+                             BTC::Stratum::Prepare>;*/
+    using Work = BTC::WorkTy<DASH::Proto, BTC::Stratum::HeaderBuilder, BTC::Stratum::CoinbaseBuilder, BTC::Stratum::Notify, BTC::Stratum::Prepare, MiningConfig, WorkerConfig, StratumMessage>;
     static constexpr bool MergedMiningSupport = false;
 
     static Work* newPrimaryWork(int64_t stratumId,

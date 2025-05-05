@@ -1,6 +1,11 @@
+// Copyright (c) 2020 Ivan K.
+// Copyright (c) 2020 The BCNode developers
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
 #include "btc.h"
 #include "serialize.h"
-#include "x11.h"
+#include "blockmaker/x11.h"
 
 namespace DASH {
 
@@ -8,19 +13,21 @@ class Proto {
 public:
     static constexpr const char* TickerName = "DASH";
 
-    using BlockHashTy = BTC::Proto::BlockHashTy;
-    using TxHashTy    = BTC::Proto::TxHashTy;
-    using AddressTy   = BTC::Proto::AddressTy;
-    using BlockHeader = BTC::Proto::BlockHeader;
-    using TxIn        = BTC::Proto::TxIn;
-    using TxOut       = BTC::Proto::TxOut;
+    using BlockHashTy      = BTC::Proto::BlockHashTy;
+    using TxHashTy         = BTC::Proto::TxHashTy;
+    using AddressTy        = BTC::Proto::AddressTy;
+    using BlockHeader      = BTC::Proto::BlockHeader;
+    using Block            = BTC::Proto::Block;
+    using TxIn             = BTC::Proto::TxIn;
+    using TxOut            = BTC::Proto::TxOut;
+    // Dash does not use segwit TxWitness
 
     struct Transaction {
         int32_t           version;
         xvector<TxIn>     txIn;
         xvector<TxOut>    txOut;
         uint32_t          lockTime;
-        xvector<uint8_t>  vExtraPayload;  // only for special tx types
+        xvector<uint8_t>  vExtraPayload;  // only for special TX types
 
         // Memory-only cache fields
         uint32_t          SerializedDataOffset = 0;
@@ -30,7 +37,28 @@ public:
         bool hasWitness() const { return false; }
     };
 
+    using CheckConsensusCtx = BTC::Proto::CheckConsensusCtx;
+    using ChainParams       = BTC::Proto::ChainParams;
+
     static CCheckStatus checkPow(const BlockHeader &header, uint32_t nBits);
+    static void checkConsensusInitialize(CheckConsensusCtx&) {}
+    static CCheckStatus checkConsensus(const BlockHeader &header, CheckConsensusCtx&, ChainParams&) {
+        return checkPow(header, header.nBits);
+    }
+    static CCheckStatus checkConsensus(const Block &block, CheckConsensusCtx&, ChainParams&) {
+        return checkPow(block.header, block.header.nBits);
+    }
+    static double getDifficulty(const BlockHeader &header) {
+        return BTC::difficultyFromBits(header.nBits, 29);
+    }
+    static double expectedWork(const BlockHeader &header, const CheckConsensusCtx&) {
+        return getDifficulty(header);
+    }
+    static bool decodeHumanReadableAddress(const std::string &hrAddress,
+                                           const std::vector<uint8_t> &prefix,
+                                           AddressTy &address) {
+        return BTC::Proto::decodeHumanReadableAddress(hrAddress, prefix, address);
+    }
 };
 
 namespace BTC {
@@ -79,26 +107,29 @@ public:
                                 const std::string &coinbaseMessage,
                                 CBlockTemplate &blockTemplate,
                                 std::string &error) {
-        return BTC::Stratum::newPrimaryWork(stratumId, backend, backendIdx,
-                                            miningCfg, miningAddress, coinbaseMessage,
-                                            blockTemplate, error);
+        if (blockTemplate.WorkType != EWorkBitcoin) {
+            error = "incompatible work type";
+            return nullptr;
+        }
+        std::unique_ptr<Work> work(new Work(stratumId,
+                                            blockTemplate.UniqueWorkId,
+                                            backend,
+                                            backendIdx,
+                                            miningCfg,
+                                            miningAddress,
+                                            coinbaseMessage));
+        return work->loadFromTemplate(blockTemplate, error) ? work.release() : nullptr;
     }
 
-    static StratumSingleWork* newSecondaryWork(int64_t,
-                                               PoolBackend*,
-                                               size_t,
-                                               const CMiningConfig&,
-                                               const std::vector<uint8_t>&,
-                                               const std::string&,
-                                               CBlockTemplate&,
-                                               const std::string&) {
+    static StratumSingleWork* newSecondaryWork(int64_t, PoolBackend*, size_t,
+                                               const CMiningConfig&, const std::vector<uint8_t>&,
+                                               const std::string&, CBlockTemplate&, const std::string&) {
         return nullptr;
     }
 
-    static StratumMergedWork* newMergedWork(int64_t,
+    static StratumMergedWork* newMergedWork(int64_t, StratumSingleWork*,
                                             std::vector<StratumSingleWork*>&,
-                                            const CMiningConfig&,
-                                            const std::string&) {
+                                            const CMiningConfig&, std::string&) {
         return nullptr;
     }
 

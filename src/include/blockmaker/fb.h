@@ -82,7 +82,7 @@ public:
 
     static double expectedWork(
         const BlockHeader       &header,
-        const CheckConsensusCtx & /*ctx*/    // ctx is not used here, but must be in signature
+        const CheckConsensusCtx & /*ctx*/    // ctx is not used, but must be here for signature
     ) {
         return getDifficulty(header);
     }
@@ -132,6 +132,12 @@ public:
     >;
 
     //
+    // Expose FbWork as the canonical “Work” for FB.  PoolCore’s StratumInstance<X> expects
+    // to call X::Stratum::newPrimaryWork(...) and get back an X::Stratum::Work* (i.e. FbWork*).
+    //
+    using Work = FbWork;
+
+    //
     // MergedWork: wraps one “primary” (BTC) work + many “secondary” (FB) works.
     //
     class MergedWork : public StratumMergedWork {
@@ -152,7 +158,8 @@ public:
         virtual void buildNotifyMessage(bool resetPreviousWork) override;
 
         //
-        // ←── **FIX #1** ── Match base signature: second parameter must be `const CStratumMessage &`
+        // ←── **Must match** StratumMergedWork::prepareForSubmit signature:
+        //     virtual bool prepareForSubmit(const CWorkerConfig&, const CStratumMessage&);
         //
         virtual bool prepareForSubmit(const CWorkerConfig &workerCfg,
                                       const CStratumMessage &msg) override;
@@ -209,7 +216,7 @@ public:
     }
 
     //
-    // ←── **FIX #2** ── Must accept `ThreadConfig &` (not rapidjson::Value&) to match BTC::Stratum
+    // Must accept ThreadConfig&, not rapidjson::Value&, to match BTC::Stratum:
     //
     static void workerConfigInitialize(CWorkerConfig &workerCfg, ThreadConfig &threadCfg) {
         BTC::Stratum::workerConfigInitialize(workerCfg, threadCfg);
@@ -220,7 +227,7 @@ public:
     }
 
     //
-    // ←── **FIX #3** ── Must accept `CStratumMessage &` (non-const) to match BTC::Stratum
+    // Must accept CStratumMessage& (non-const) to match BTC::Stratum:
     //
     static void workerConfigOnSubscribe(
         CWorkerConfig     &workerCfg,
@@ -233,9 +240,8 @@ public:
     }
 
     //
-    // Builds (Stratum) “set_target” message. PoolCore’s generic code will call this.
-    // Doge implements it by delegating to BTC::Stratum::buildSendTargetMessage.
-    // We must do the same, otherwise `stratumSendTarget(...)` will not compile.
+    // Builds the “set_target” message that PoolCore’s StratumInstance will call.
+    // Doge delegates to BTC::Stratum::buildSendTargetMessage, so we do the same:
     //
     static void buildSendTargetMessage(xmstream &stream, double shareDiff) {
         BTC::Stratum::buildSendTargetMessage(stream, shareDiff);
@@ -243,8 +249,9 @@ public:
 
     //
     // When FB is used as a standalone coin (no merged mining), this builds a single FB work:
+    // Returns FbWork*, which is convertible to X::Stratum::Work* because we aliased Work = FbWork.
     //
-    static BTC::Stratum::Work* newPrimaryWork(
+    static Work* newPrimaryWork(
         int64_t                    stratumId,
         PoolBackend               *backend,
         size_t                     backendIdx,
@@ -257,8 +264,9 @@ public:
 
     //
     // When FB appears as a “secondary” only (merged under a BTC primary), build a FbWork:
+    // Return type is FbWork* (same as Work*).
     //
-    static FbWork* newSecondaryWork(
+    static Work* newSecondaryWork(
         int64_t                    stratumId,
         PoolBackend               *backend,
         size_t                     backendIdx,

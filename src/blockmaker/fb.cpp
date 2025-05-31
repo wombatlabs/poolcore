@@ -42,7 +42,7 @@ std::vector<int> Stratum::buildChainMap(
             std::fill(chainMap.begin(), chainMap.end(), 0);
 
             for (size_t workIdx = 0; workIdx < secondaries.size(); workIdx++) {
-                Stratum::FbWork *work = static_cast<Stratum::FbWork*>(secondaries[workIdx]);
+                Stratum::FbWork *work = fbWork(workIdx);
                 uint32_t chainId = work->Header.nVersion >> 16;
                 uint32_t indexInMerkle = getExpectedIndex(nonce, chainId, pathSize);
 
@@ -82,7 +82,7 @@ Stratum::MergedWork::MergedWork(
     // 1) Copy “primary” (BTC) header + merkle + consensus‐ctx:
     BTCHeader_       = btcWork()->Header;
     BTCMerklePath_   = btcWork()->MerklePath;
-    BTCConsensusCtx_ = btcWork()->ConsensusCtx_;  // <-- fixed field name
+    BTCConsensusCtx_ = btcWork()->ConsensusCtx_;  // <-- correct field name
 
     // 2) Prepare FB secondaries:
     fbHeaders_.resize(second.size());
@@ -151,11 +151,9 @@ Stratum::MergedWork::MergedWork(
     // 6) Capture consensus context for each FB header so we can validate on submit:
     fbConsensusCtx_.resize(second.size());
 
-    // ※ Remove or replace this placeholder with actual chain params initialization:
-    // fbChainParams_ = /* load FB chain params (powLimit, etc.) from your config */;
-    // If you have a function `getFbChainParams()`, you might do:
-    //    fbChainParams_ = getFbChainParams();
-
+    // **You must initialize fbChainParams_ here** (e.g. from your config). Example:
+    //    fbChainParams_ = loadFbChainParams();
+    //
     MiningCfg_ = miningCfg;
 }
 
@@ -206,10 +204,10 @@ bool Stratum::MergedWork::prepareForSubmit(
     const CStratumMessage &msg
 ) {
     // 1) Validate primary (BTC) share:
-    //    ←── **Add a '0' for asicBoostData** as the second parameter
+    //    Must pass a uint32_t asicBoostData = 0 for SHA256:
     if (!BTC::Stratum::Work::prepareForSubmitImpl(
             BTCHeader_,        // header
-            uint32_t(0),       // asicBoostData = 0 for SHA256
+            uint32_t(0),       // asicBoostData
             BTCLegacy_,        // coinbase legacy
             BTCWitness_,       // coinbase witness
             BTCMerklePath_,    // merkle path
@@ -257,7 +255,7 @@ bool Stratum::MergedWork::prepareForSubmit(
         CCheckStatus status = FB::Proto::checkConsensus(
             header,
             fbConsensusCtx_[workIdx],
-            fbChainParams_    // ensure this is initialized properly elsewhere
+            fbChainParams_    // must be initialized correctly
         );
         if (!status.IsBlock) {
             return false;
@@ -299,7 +297,7 @@ CCheckStatus Stratum::MergedWork::checkConsensus(size_t workIdx) {
 //
 // Standalone FB primary work:
 //
-BTC::Stratum::Work* Stratum::newPrimaryWork(
+Stratum::Work* Stratum::newPrimaryWork(
     int64_t                    stratumId,
     PoolBackend               *backend,
     size_t                     backendIdx,
@@ -325,14 +323,14 @@ BTC::Stratum::Work* Stratum::newPrimaryWork(
     if (!work->loadFromTemplate(blockTemplate, error)) {
         return nullptr;
     }
-    // Must cast FbWork* → BTC::Stratum::Work*
-    return static_cast<BTC::Stratum::Work*>(work.release());
+    // Ownership passes to caller; return FbWork* (alias Work*):
+    return work.release();
 }
 
 //
 // FB as a “secondary” under a BTC primary:
 //
-BTC::Stratum::Work* Stratum::newSecondaryWork(
+Stratum::Work* Stratum::newSecondaryWork(
     int64_t                    stratumId,
     PoolBackend               *backend,
     size_t                     backendIdx,
@@ -358,8 +356,8 @@ BTC::Stratum::Work* Stratum::newSecondaryWork(
     if (!work->loadFromTemplate(blockTemplate, error)) {
         return nullptr;
     }
-    // Must cast FbWork* → BTC::Stratum::Work*
-    return static_cast<BTC::Stratum::Work*>(work.release());
+    // Return as Work* (alias to FbWork*):
+    return work.release();
 }
 
 //
@@ -407,16 +405,18 @@ void Io<FB::Proto::BlockHeader>::serialize(
     xmstream &dst,
     const FB::Proto::BlockHeader &data
 ) {
-    // Base BTC header:
-    serialize(dst, *(FB::Proto::PureBlockHeader*)&data);
+    // Base BTC header (the first 80 bytes):
+    BTC::serialize(dst, static_cast<const FB::Proto::PureBlockHeader&>(data));
+
     if (data.nVersion & FB::Proto::BlockHeader::VERSION_AUXPOW) {
-        serialize(dst, data.ParentBlockCoinbaseTx);
-        serialize(dst, data.HashBlock);
-        serialize(dst, data.MerkleBranch);
-        serialize(dst, data.Index);
-        serialize(dst, data.ChainMerkleBranch);
-        serialize(dst, data.ChainIndex);
-        serialize(dst, data.ParentBlock);
+        // Now serialize each AuxPoW field:
+        BTC::serialize(dst, data.ParentBlockCoinbaseTx);
+        BTC::serialize(dst, data.HashBlock);
+        BTC::serialize(dst, data.MerkleBranch);
+        BTC::serialize(dst, data.Index);
+        BTC::serialize(dst, data.ChainMerkleBranch);
+        BTC::serialize(dst, data.ChainIndex);
+        BTC::serialize(dst, data.ParentBlock);
     }
 }
 
@@ -425,15 +425,16 @@ void Io<FB::Proto::BlockHeader>::unserialize(
     FB::Proto::BlockHeader &data
 ) {
     // Base BTC header:
-    unserialize(src, *(FB::Proto::PureBlockHeader*)&data);
+    BTC::unserialize(src, static_cast<FB::Proto::PureBlockHeader&>(data));
+
     if (data.nVersion & FB::Proto::BlockHeader::VERSION_AUXPOW) {
-        unserialize(src, data.ParentBlockCoinbaseTx);
-        unserialize(src, data.HashBlock);
-        unserialize(src, data.MerkleBranch);
-        unserialize(src, data.Index);
-        unserialize(src, data.ChainMerkleBranch);
-        unserialize(src, data.ChainIndex);
-        unserialize(src, data.ParentBlock);
+        BTC::unserialize(src, data.ParentBlockCoinbaseTx);
+        BTC::unserialize(src, data.HashBlock);
+        BTC::unserialize(src, data.MerkleBranch);
+        BTC::unserialize(src, data.Index);
+        BTC::unserialize(src, data.ChainMerkleBranch);
+        BTC::unserialize(src, data.ChainIndex);
+        BTC::unserialize(src, data.ParentBlock);
     }
 }
 

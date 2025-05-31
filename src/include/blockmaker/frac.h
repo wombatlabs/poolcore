@@ -33,7 +33,7 @@ public:
     struct BlockHeader : public PureBlockHeader {
         static const int32_t VERSION_AUXPOW = (1 << 8);
 
-        // AuxPoW fields (exactly parallel to DOGE’s layout):
+        // AuxPoW fields (parallel to DOGE’s layout):
         Transaction         ParentBlockCoinbaseTx;
         uint256             HashBlock;
         xvector<uint256>    MerkleBranch;

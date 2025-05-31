@@ -13,7 +13,61 @@ std::vector<int> Stratum::buildChainMap(std::vector<StratumSingleWork*> &seconda
                                         uint32_t &nonce,
                                         unsigned &virtualHashesNum)
 {
-    // … your existing buildChainMap code …
+    // RESULT must be exactly one entry per secondary work
+    std::vector<int> result(secondary.size());
+
+    // If only one secondary, pathSize starts at 0; otherwise pick minimum needed
+    unsigned minPathSize = (secondary.size() > 1)
+                           ? (31 - __builtin_clz((secondary.size() << 1) - 1))
+                           : 0;
+
+    for (unsigned pathSize = minPathSize; pathSize < 8; pathSize++) {
+        virtualHashesNum = (1u << pathSize);
+        // A fresh chainMap of length = virtualHashesNum
+        std::vector<int> chainMap(virtualHashesNum, 0);
+
+        bool foundCollisionFree = true;
+        for (nonce = 0; nonce < virtualHashesNum; nonce++) {
+            foundCollisionFree = true;
+            std::fill(chainMap.begin(), chainMap.end(), 0);
+
+            // Try to assign each secondary a distinct indexInMerkle
+            for (size_t i = 0; i < secondary.size(); i++) {
+                auto *work = static_cast<Stratum::FracWork*>(secondary[i]);
+                // Extract FRAC’s “chain ID” from high 16 bits of version
+                uint32_t chainId = (work->Header.nVersion >> 16);
+
+                // Pseudorandom index in [0, virtualHashesNum)
+                uint32_t randv = nonce;
+                randv = randv * 1103515245 + 12345;
+                randv += chainId;
+                randv = randv * 1103515245 + 12345;
+                uint32_t idx = randv & (virtualHashesNum - 1);
+
+                if (chainMap[idx] == 0) {
+                    chainMap[idx] = 1;
+                    result[i] = idx;
+                } else {
+                    foundCollisionFree = false;
+                    break;
+                }
+            }
+            if (foundCollisionFree) {
+                // We found a nonce that places all secondaries into unique leaves
+                break;
+            }
+        }
+
+        if (foundCollisionFree) {
+            // SUCCESS: return a vector of length = secondary.size()
+            // (e.g. { 0 } if exactly one secondary)
+            return result;
+        }
+        // Otherwise, try the next pathSize (doubling virtualHashesNum)
+    }
+
+    // If no collision-free assignment was found up to pathSize=7, fail:
+    return std::vector<int>();
 }
 
 //////////////////////////

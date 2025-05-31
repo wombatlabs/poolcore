@@ -2,7 +2,7 @@
 #include "blockmaker/merkleTree.h"
 #include "blockmaker/serializeJson.h"
 #include "sha256.h"                // for CCtxSha256, sha256Init, etc.
-#include "stratumWork.h"          // for StratumMergedWork, StratumSingleWork, etc.
+#include "blockmaker/stratumWork.h"          // for StratumMergedWork, StratumSingleWork, etc.
 
 static const unsigned char pchMergedMiningHeader[] = { 0xfa, 0xbe, 'm', 'm' };
 

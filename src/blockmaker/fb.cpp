@@ -30,23 +30,32 @@ std::vector<int> Stratum::buildChainMap(
 ) {
     std::vector<int> result(secondaries.size());
     std::vector<int> chainMap;
-    bool finished = true;
+    bool finished = false;
 
-    // Start pathSize from the minimal tree height that can hold all secondaries.
+    // 1) Compute how many leaves we need at minimum:
     unsigned count = static_cast<unsigned>(secondaries.size());
-    for (unsigned pathSize = merklePathSize(count); pathSize < 8; pathSize++) {
+    unsigned minPathSize = merklePathSize(count);
+
+    // If minPathSize >= 8, (1<<minPathSize) >= 256, which we do NOT support
+    // (we only allow up to height 7, i.e. 128 leaves). Just bail out:
+    if (minPathSize >= 8) {
+        virtualHashesNum = 0;
+        return { };
+    }
+
+    // 2) Try all pathSizes from that minimum up to 7 (inclusive):
+    for (unsigned pathSize = minPathSize; pathSize < 8; pathSize++) {
         virtualHashesNum = 1u << pathSize;
         chainMap.resize(virtualHashesNum);
 
+        // 3) Try every nonce until we find a collision-free assignment or exhaust all nonces:
         for (nonce = 0; nonce < virtualHashesNum; nonce++) {
             finished = true;
             std::fill(chainMap.begin(), chainMap.end(), 0);
 
             for (size_t workIdx = 0; workIdx < secondaries.size(); workIdx++) {
-                // Cast the generic StratumSingleWork* directly to FbWork*
-                FB::Stratum::FbWork *work = static_cast<FB::Stratum::FbWork*>(
-                    secondaries[workIdx]
-                );
+                // each StratumSingleWork* is itself the FbWork instance:
+                FbWork *work = static_cast<FbWork*>( secondaries[workIdx] );
 
                 uint32_t chainId = work->Header.nVersion >> 16;
                 uint32_t indexInMerkle = getExpectedIndex(nonce, chainId, pathSize);
@@ -55,25 +64,30 @@ std::vector<int> Stratum::buildChainMap(
                     chainMap[indexInMerkle] = 1;
                     result[workIdx] = indexInMerkle;
                 } else {
-                    // Collision: try next nonce
                     finished = false;
                     break;
                 }
             }
 
             if (finished) {
-                // Found a nonce that yields no collisions
+                // Found a valid nonce for this pathSize
                 break;
             }
         }
 
         if (finished) {
-            // We found a valid mapping at this pathSize
+            // We found a collision-free assignment at this pathSize
             break;
         }
     }
 
-    return (finished ? result : std::vector<int>());
+    // 4) If we never found a collision-free arrangement, return empty:
+    if (!finished) {
+        virtualHashesNum = 0;
+        return { };
+    }
+
+    return result;
 }
 
 //

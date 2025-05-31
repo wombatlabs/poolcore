@@ -185,32 +185,31 @@ Stratum::MergedWork::MergedWork(
                          rootBytes,
                          rootBytes + sizeof(uint256));
 
-        // 5.3) virtualHashesNum (uint32_t, 4 bytes, little‐endian)
+        // 5.3) virtualHashesNum (4 bytes, LE)
         {
             uint32_t vh_le = virtualHashesNum;
             uint8_t *bytes = reinterpret_cast<uint8_t*>(&vh_le);
             extraData.insert(extraData.end(), bytes, bytes + sizeof(uint32_t));
         }
 
-        // 5.4) mmNonce (uint32_t, 4 bytes, little‐endian)
+        // 5.4) mmNonce (4 bytes, LE)
         {
             uint32_t mm_le = mmNonce;
             uint8_t *bytes = reinterpret_cast<uint8_t*>(&mm_le);
             extraData.insert(extraData.end(), bytes, bytes + sizeof(uint32_t));
         }
 
-        // Now extraData.size() == 44. Pass it into buildCoinbaseTx:
-        // NEW (11‐argument) CALL – supplies the missing coinbaseMessage  miningAddress  segwit flag  empty witnessCommitment:
+        // 5.5) Now call buildCoinbaseTx with all nine required arguments:
         btcWork()->buildCoinbaseTx(
-            extraData.data(),                       // pointer to merged‐mining header
-            extraData.size(),                       // size == 44
-            work->CoinbaseMessage,                  // FB’s coinbaseMessage (std::string&)
-            work->MiningAddress,                    // FB’s miningAddress (const vector<uint8_t>&)
-            miningCfg,                              // CMiningConfig
-            false,                                  // segwitEnabled = false for FB merged SHA-256
-            std::vector<uint8_t>(),                 // empty witnessCommitment
-            BTCLegacy_,                             // CoinbaseTx& for legacy
-            BTCWitness_                             // CoinbaseTx& for witness
+            extraData.data(),                      // merged‐mining header pointer
+            extraData.size(),                      // length == 44
+            btcWork()->CoinbaseMessage,            // primary BTC’s coinbaseMessage (std::string&)
+            btcWork()->MiningAddress,              // primary BTC’s miningAddress (const vector<uint8_t>&)
+            miningCfg,                             // CMiningConfig
+            false,                                 // segwitEnabled = false for merged SHA256
+            std::vector<uint8_t>(),                // empty witnessCommitment
+            BTCLegacy_,                            // CoinbaseTx& for legacy
+            BTCWitness_                            // CoinbaseTx& for witness
         );
     }
 

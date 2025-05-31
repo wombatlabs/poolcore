@@ -20,6 +20,10 @@ static uint32_t getExpectedIndex(uint32_t nNonce, int nChainId, unsigned h) {
 
 namespace FB {
 
+//
+// Build a collision‐free “chain map” for up to 128 secondaries.
+// If there are more than 128 secondaries (minPathSize ≥ 8), bail out.
+//
 std::vector<int> Stratum::buildChainMap(
     std::vector<StratumSingleWork*> &secondaries,
     uint32_t                       &nonce,
@@ -33,8 +37,9 @@ std::vector<int> Stratum::buildChainMap(
     unsigned minPathSize = merklePathSize(count);
 
     if (minPathSize >= 8) {
+        // Too many secondaries to fit in a 2^h merkle tree for h < 8
         virtualHashesNum = 0;
-        return { };
+        return {};
     }
 
     for (unsigned pathSize = minPathSize; pathSize < 8; pathSize++) {
@@ -47,7 +52,6 @@ std::vector<int> Stratum::buildChainMap(
 
             for (size_t workIdx = 0; workIdx < secondaries.size(); workIdx++) {
                 FbWork *work = static_cast<FbWork*>(secondaries[workIdx]);
-
                 uint32_t chainId = work->Header.nVersion >> 16;
                 uint32_t indexInMerkle = getExpectedIndex(nonce, chainId, pathSize);
 
@@ -61,23 +65,28 @@ std::vector<int> Stratum::buildChainMap(
             }
 
             if (finished) {
+                // Found a nonce that yields no collisions for this pathSize
                 break;
             }
         }
 
         if (finished) {
+            // We found a valid assignment for this pathSize
             break;
         }
     }
 
     if (!finished) {
         virtualHashesNum = 0;
-        return { };
+        return {};
     }
 
     return result;
 }
 
+//
+// MergedWork constructor: one BTC primary + N FB secondaries.
+//
 Stratum::MergedWork::MergedWork(
     uint64_t                         stratumWorkId,
     StratumSingleWork              *first,
@@ -88,32 +97,33 @@ Stratum::MergedWork::MergedWork(
     const CMiningConfig             &miningCfg
 ) : StratumMergedWork(stratumWorkId, first, second, miningCfg)
 {
-    // 1) Copy “primary” (BTC) header + merkle + consensus‐ctx:
+    // 1) Copy the BTC “primary” header + merkle path + consensus‐ctx
     BTCHeader_       = btcWork()->Header;
     BTCMerklePath_   = btcWork()->MerklePath;
     BTCConsensusCtx_ = btcWork()->ConsensusCtx_;
 
     // 2) Prepare FB secondaries:
     if (second.size() > 128) {
-        throw std::runtime_error("FB: too many secondaries");
+        throw std::runtime_error("FB: too many secondaries (max 128)");
     }
     fbHeaders_.resize(second.size());
     fbLegacy_.resize(second.size());
     fbWitness_.resize(second.size());
+
     if (virtualHashesNum > 128) {
-        throw std::runtime_error("FB: virtualHashesNum too large");
+        throw std::runtime_error("FB: virtualHashesNum too large (max 128)");
     }
     fbHeaderHashes_.resize(virtualHashesNum, uint256());
     fbWorkMap_.assign(mmChainId.begin(), mmChainId.end());
 
-    // 3) Build “static” FB coinbase + compute each secondary’s merkle root hash:
+    // 3) Build a “static” FB coinbase for each secondary, compute each FB header’s merkle root:
     for (size_t workIdx = 0; workIdx < fbHeaders_.size(); workIdx++) {
-        //Stratum::FbWork *work = fbWork(workIdx);
         FbWork *work = fbWork(workIdx);
         FB::Proto::BlockHeader &header = fbHeaders_[workIdx];
         BTC::CoinbaseTx &legacy = fbLegacy_[workIdx];
         BTC::CoinbaseTx &witness = fbWitness_[workIdx];
 
+        // Copy the secondary’s header as a starting point
         header = work->Header;
 
         // Build a “static” FB coinbase (no extra‐nonce) so we can calculate merkle root:
@@ -122,7 +132,7 @@ Stratum::MergedWork::MergedWork(
         emptyCfg.MutableExtraNonceSize = 0;
         work->buildCoinbaseTx(nullptr, 0, emptyCfg, legacy, witness);
 
-        // Mark AuxPoW bit:
+        // Mark the AuxPoW bit:
         header.nVersion |= FB::Proto::BlockHeader::VERSION_AUXPOW;
 
         // Compute coinbaseTxHash = double‐SHA256(legacy.Data):
@@ -154,36 +164,42 @@ Stratum::MergedWork::MergedWork(
     std::reverse(chainMerkleRoot.begin(), chainMerkleRoot.end());
 
     // 5) Pack exactly 44 bytes of merged‐mining header:
+    //
+    //     [ pchMergedMiningHeader (4 bytes)
+    //     | chainMerkleRoot         (32 bytes)
+    //     | virtualHashesNum (4 bytes, LE)
+    //     | mmNonce           (4 bytes, LE) ]
+    //
     {
         std::vector<uint8_t> extraData;
         extraData.reserve(4 + sizeof(uint256) + 4 + 4);
 
-        // 5.1) pchMergedMiningHeader (4 bytes):
+        // 5.1) pchMergedMiningHeader (4 bytes)
         extraData.insert(extraData.end(),
                          pchMergedMiningHeader,
                          pchMergedMiningHeader + sizeof(pchMergedMiningHeader));
 
-        // 5.2) chainMerkleRoot (32 bytes):
+        // 5.2) chainMerkleRoot (32 bytes)
         const uint8_t *rootBytes = chainMerkleRoot.begin();
         extraData.insert(extraData.end(),
                          rootBytes,
                          rootBytes + sizeof(uint256));
 
-        // 5.3) virtualHashesNum (uint32_t, 4 bytes, little‐endian):
+        // 5.3) virtualHashesNum (uint32_t, 4 bytes, little‐endian)
         {
             uint32_t vh_le = virtualHashesNum;
             uint8_t *bytes = reinterpret_cast<uint8_t*>(&vh_le);
             extraData.insert(extraData.end(), bytes, bytes + sizeof(uint32_t));
         }
 
-        // 5.4) mmNonce (uint32_t, 4 bytes, little‐endian):
+        // 5.4) mmNonce (uint32_t, 4 bytes, little‐endian)
         {
             uint32_t mm_le = mmNonce;
             uint8_t *bytes = reinterpret_cast<uint8_t*>(&mm_le);
             extraData.insert(extraData.end(), bytes, bytes + sizeof(uint32_t));
         }
 
-        // 5.5) Now extraData.size() == 44. Pass that into buildCoinbaseTx:
+        // Now extraData.size() == 44. Pass it into buildCoinbaseTx:
         btcWork()->buildCoinbaseTx(
             extraData.data(),
             extraData.size(),
@@ -196,8 +212,8 @@ Stratum::MergedWork::MergedWork(
     // 6) Capture consensus context for each FB header so we can validate on submit:
     fbConsensusCtx_.resize(second.size());
 
-    // Initialize fbChainParams_ from your actual chain parameters:
-    // fbChainParams_ = loadFbChainParams();
+    // TODO: Initialize fbChainParams_ from your FB chain parameters (powLimit, etc.)
+    //   fbChainParams_ = loadFbChainParams();
     MiningCfg_ = miningCfg;
 }
 
@@ -245,34 +261,40 @@ bool Stratum::MergedWork::prepareForSubmit(
     const CWorkerConfig   &workerCfg,
     const CStratumMessage &msg
 ) {
+    // 1) Validate the BTC primary share:
     if (!BTC::Stratum::Work::prepareForSubmitImpl(
-            BTCHeader_,
-            uint32_t(0),
-            BTCLegacy_,
-            BTCWitness_,
-            BTCMerklePath_,
-            workerCfg,
-            MiningCfg_,
-            msg
+            BTCHeader_,        // header
+            uint32_t(0),       // asicBoostData = 0 for SHA256
+            BTCLegacy_,        // coinbase legacy
+            BTCWitness_,       // coinbase witness
+            BTCMerklePath_,    // merkle path
+            workerCfg,         // worker config
+            MiningCfg_,        // mining config
+            msg                // stratum message
         ))
     {
         return false;
     }
 
+    // 2) For each FB header, unpack AuxPoW fields and verify its POW:
     for (size_t workIdx = 0; workIdx < fbHeaders_.size(); workIdx++) {
         FB::Proto::BlockHeader &header = fbHeaders_[workIdx];
 
+        // Rewind BTCWitness_.Data to the start, then unserialize the FB ParentBlockCoinbaseTx:
         BTCWitness_.Data.seekSet(0);
         BTC::unserialize(BTCWitness_.Data, header.ParentBlockCoinbaseTx);
 
+        // Clear HashBlock & Index for POW‐check
         header.HashBlock.SetNull();
         header.Index = 0;
 
+        // Attach the same merkle path (from the BTC primary) for the “aux” leafs:
         header.MerkleBranch.resize(BTCMerklePath_.size());
         for (size_t j = 0; j < BTCMerklePath_.size(); j++) {
             header.MerkleBranch[j] = BTCMerklePath_[j];
         }
 
+        // Build the chain‐merkle‐branch for this FB header:
         std::vector<uint256> path;
         buildMerklePath(
             fbHeaderHashes_,
@@ -286,10 +308,11 @@ bool Stratum::MergedWork::prepareForSubmit(
         header.ChainIndex  = fbWorkMap_[workIdx];
         header.ParentBlock = BTCHeader_;
 
+        // Finally, verify this FB header’s POW against our stored fbChainParams_:
         CCheckStatus status = FB::Proto::checkConsensus(
             header,
             fbConsensusCtx_[workIdx],
-            fbChainParams_
+            fbChainParams_    // ensure you've initialized this properly elsewhere
         );
         if (!status.IsBlock) {
             return false;
@@ -301,8 +324,10 @@ bool Stratum::MergedWork::prepareForSubmit(
 
 void Stratum::MergedWork::buildBlock(size_t workIdx, xmstream &blockHexData) {
     if (workIdx == 0 && btcWork()) {
+        // Submit the BTC primary:
         btcWork()->buildBlockImpl(BTCHeader_, BTCWitness_, blockHexData);
     } else if (fbWork(workIdx - 1)) {
+        // Submit the FB secondary:
         fbWork(workIdx - 1)->buildBlockImpl(
             fbHeaders_[workIdx - 1],
             fbWitness_[workIdx - 1],
@@ -313,8 +338,10 @@ void Stratum::MergedWork::buildBlock(size_t workIdx, xmstream &blockHexData) {
 
 CCheckStatus Stratum::MergedWork::checkConsensus(size_t workIdx) {
     if (workIdx == 0 && btcWork()) {
+        // Validate the BTC primary:
         return BTC::Stratum::Work::checkConsensusImpl(BTCHeader_, BTCConsensusCtx_);
     } else if (fbWork(workIdx - 1)) {
+        // Validate this FB header’s POW:
         return FB::Proto::checkConsensus(
             fbHeaders_[workIdx - 1],
             fbConsensusCtx_[workIdx - 1],
@@ -324,6 +351,9 @@ CCheckStatus Stratum::MergedWork::checkConsensus(size_t workIdx) {
     return CCheckStatus();
 }
 
+//
+// When FB stands alone (no merged mining), build an FB work:
+//
 Stratum::Work* Stratum::newPrimaryWork(
     int64_t                    stratumId,
     PoolBackend               *backend,
@@ -353,6 +383,9 @@ Stratum::Work* Stratum::newPrimaryWork(
     return work.release();
 }
 
+//
+// When FB is a “secondary” under a BTC primary:
+//
 Stratum::Work* Stratum::newSecondaryWork(
     int64_t                    stratumId,
     PoolBackend               *backend,
@@ -382,6 +415,9 @@ Stratum::Work* Stratum::newSecondaryWork(
     return work.release();
 }
 
+//
+// When BTC primary + one-or-more FB secondaries come together:
+//
 StratumMergedWork* Stratum::newMergedWork(
     int64_t                       stratumId,
     StratumSingleWork           *first,
@@ -413,13 +449,19 @@ StratumMergedWork* Stratum::newMergedWork(
 
 } // namespace FB
 
+//
+// Provide serialize/unserialize specialization for FB::Proto::BlockHeader inside namespace BTC:
+//
 namespace BTC {
 
 void Io<FB::Proto::BlockHeader>::serialize(
     xmstream &dst,
     const FB::Proto::BlockHeader &data
 ) {
+    // First write the “pure” BTC header (80 bytes):
     BTC::serialize(dst, static_cast<const FB::Proto::PureBlockHeader&>(data));
+
+    // If AuxPoW bit is set, write all AuxPoW fields:
     if (data.nVersion & FB::Proto::BlockHeader::VERSION_AUXPOW) {
         BTC::serialize(dst, data.ParentBlockCoinbaseTx);
         BTC::serialize(dst, data.HashBlock);
@@ -435,7 +477,10 @@ void Io<FB::Proto::BlockHeader>::unserialize(
     xmstream &src,
     FB::Proto::BlockHeader &data
 ) {
+    // First read the “pure” BTC header (80 bytes):
     BTC::unserialize(src, static_cast<FB::Proto::PureBlockHeader&>(data));
+
+    // If AuxPoW bit is set, read all AuxPoW fields:
     if (data.nVersion & FB::Proto::BlockHeader::VERSION_AUXPOW) {
         BTC::unserialize(src, data.ParentBlockCoinbaseTx);
         BTC::unserialize(src, data.HashBlock);

@@ -200,12 +200,17 @@ Stratum::MergedWork::MergedWork(
         }
 
         // Now extraData.size() == 44. Pass it into buildCoinbaseTx:
+        // NEW (11‐argument) CALL – supplies the missing coinbaseMessage  miningAddress  segwit flag  empty witnessCommitment:
         btcWork()->buildCoinbaseTx(
-            extraData.data(),
-            extraData.size(),
-            miningCfg,
-            BTCLegacy_,
-            BTCWitness_
+            extraData.data(),                       // pointer to merged‐mining header
+            extraData.size(),                       // size == 44
+            work->CoinbaseMessage,                  // FB’s coinbaseMessage (std::string&)
+            work->MiningAddress,                    // FB’s miningAddress (const vector<uint8_t>&)
+            miningCfg,                              // CMiningConfig
+            false,                                  // segwitEnabled = false for FB merged SHA-256
+            std::vector<uint8_t>(),                 // empty witnessCommitment
+            BTCLegacy_,                             // CoinbaseTx& for legacy
+            BTCWitness_                             // CoinbaseTx& for witness
         );
     }
 

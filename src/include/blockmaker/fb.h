@@ -96,6 +96,8 @@ public:
     }
 };
 
+} // namespace FB
+
 //
 // Provide IO<> specialization so that FB::Proto::BlockHeader serializes just like AuxPoW in BTC.
 //
@@ -171,10 +173,10 @@ public:
 
         // “Secondary” (FB) headers + meta:
         std::vector<FB::Proto::BlockHeader> fbHeaders_;
-        std::vector<BTC::CoinbaseTx>           fbLegacy_;
-        std::vector<BTC::CoinbaseTx>           fbWitness_;
-        std::vector<uint256>                   fbHeaderHashes_;
-        std::vector<int>                       fbWorkMap_;
+        std::vector<BTC::CoinbaseTx>        fbLegacy_;
+        std::vector<BTC::CoinbaseTx>        fbWitness_;
+        std::vector<uint256>                fbHeaderHashes_;
+        std::vector<int>                    fbWorkMap_;
         std::vector<FB::Proto::CheckConsensusCtx> fbConsensusCtx_;
         FB::Proto::ChainParams             fbChainParams_;
 

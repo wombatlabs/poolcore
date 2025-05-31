@@ -3,7 +3,7 @@
 
 #include "blockmaker/fb.h"
 #include "blockmaker/merkleTree.h"
-#include "blockmaker/serializeJsonInside.h"
+#include "blockmaker/serializeJson.h"
 #include <algorithm>
 #include <cstdint>
 #include <vector>

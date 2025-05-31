@@ -42,7 +42,7 @@ std::vector<int> Stratum::buildChainMap(
             std::fill(chainMap.begin(), chainMap.end(), 0);
 
             for (size_t workIdx = 0; workIdx < secondaries.size(); workIdx++) {
-                Stratum::FbWork *work = fbWork(workIdx);
+                Stratum::FbWork *work = FbWork(workIdx);
                 uint32_t chainId = work->Header.nVersion >> 16;
                 uint32_t indexInMerkle = getExpectedIndex(nonce, chainId, pathSize);
 

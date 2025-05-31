@@ -1,5 +1,5 @@
 // fb.cpp
-#include "fb.h"
+#include "blockmaker/fb.h"
 #include <utility>      // for std::move
 #include <cassert>
 

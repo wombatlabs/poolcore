@@ -1,6 +1,3 @@
-#include "poolcommon/utils.h"
-
-
 std::string vstrprintf(const char *format, va_list ap)
 {
     char buffer[50000];
@@ -17,18 +14,33 @@ std::string vstrprintf(const char *format, va_list ap)
         ret = vsnprintf(p, limit, format, arg_ptr);
 #endif
         va_end(arg_ptr);
-        if (ret >= 0 && ret < limit)
+
+        // ─── Inserted check for vsnprintf error ───
+        if (ret < 0) {
+            // Formatting failed (invalid format or arguments). Bail out.
+            throw std::runtime_error("vstrprintf: formatting error (vsnprintf returned negative)");
+        }
+
+        if (ret < limit) {
+            // Everything fit: `ret` is the number of characters written.
             break;
-        if (p != buffer)
+        }
+
+        // Otherwise, ret >= limit means “buffer was too small,” so grow it:
+        if (p != buffer) {
             delete[] p;
+        }
         limit *= 2;
         p = new char[limit];
-        if (p == NULL)
+        if (p == nullptr) {
             throw std::bad_alloc();
+        }
     }
-    std::string str(p, p+ret);
-    if (p != buffer)
+
+    std::string str(p, p + ret);
+    if (p != buffer) {
         delete[] p;
+    }
     return str;
 }
 

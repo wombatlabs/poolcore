@@ -155,6 +155,7 @@ StratumSingleWork* Stratum::newSecondaryWork(int64_t stratumId,
 
 //////////////////////////
 // 4) MergedWork constructor  virtual overrides
+// ─── FRAC::Stratum::MergedWork::MergedWork ────────────────────────────────────
 Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
                                 StratumSingleWork *first,
                                 std::vector<StratumSingleWork*> &second,
@@ -164,63 +165,87 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
                                 const CMiningConfig &miningCfg)
   : StratumMergedWork(stratumWorkId, first, second, miningCfg)
 {
-    BaseHeader_     = baseWork()->Header;
-    BaseMerklePath_ = baseWork()->MerklePath;
+    // 1) Copy primary (BTC-like) fields:
+    BaseHeader_      = baseWork()->Header;
+    BaseMerklePath_  = baseWork()->MerklePath;
     BaseConsensusCtx_ = baseWork()->ConsensusCtx_;
 
+    // 2) Allocate exactly one slot per secondary:
     FRACHeaders_.resize(second.size());
     FRACLegacy_.resize(second.size());
     FRACWitness_.resize(second.size());
+
+    // 3) Allocate exactly virtualHashesNum slots for the mm-merkle
     FRACHeaderHashes_.resize(virtualHashesNum, uint256());
+
+    // 4) Copy chainMap into FRACWorkMap_ (mmChainId.size() == second.size()):
     FRACWorkMap_.assign(mmChainId.begin(), mmChainId.end());
 
-    // Build each FRAC sub-header exactly like DOGE does, but using SHA-256:
-    for (size_t i = 0; i < FRACHeaders_.size(); i) {
+    // ===== Now build each FRAC sub-header =====
+    for (size_t i = 0; i < FRACHeaders_.size(); i++) {
+        // Cast to FRAC::FracWork:
         auto *fw = static_cast<Stratum::FracWork*>(second[i]);
+
+        // 4.1) Copy the “bare” FRAC header from the template
         FRACHeaders_[i] = fw->Header;
 
-        // Build “static” FRAC coinbase (no extra-nonce) to hash merkle path
+        // 4.2) Build a static FRAC coinbase (no extra-nonce) so we can compute merkle root
         CMiningConfig dummyExtra{};
         dummyExtra.FixedExtraNonceSize   = 0;
         dummyExtra.MutableExtraNonceSize = 0;
         fw->buildCoinbaseTx(nullptr, 0, dummyExtra, FRACLegacy_[i], FRACWitness_[i]);
 
-        // Mark version FOR AuxPoW:
+        // 4.3) Flip on the AuxPoW version bit:
         FRACHeaders_[i].nVersion |= FRAC::Proto::BlockHeader::VERSION_AUXPOW;
 
-        // Compute FRAC merkle root from FRACLegacy_[i]
-        uint256 coinbaseTxHash;
-        CCtxSha256 sha256;
-        sha256Init(&sha256);
-        sha256Update(&sha256, FRACLegacy_[i].Data.data(), FRACLegacy_[i].Data.sizeOf());
-        sha256Final(&sha256, coinbaseTxHash.begin());
-        sha256Init(&sha256);
-        sha256Update(&sha256, coinbaseTxHash.begin(), coinbaseTxHash.size());
-        sha256Final(&sha256, coinbaseTxHash.begin());
+        // 4.4) Compute FRAC merkleRoot from the coinbaseTx
+        uint256 coinbaseHash;
+        {
+            CCtxSha256 sha;
+            sha256Init(&sha);
+            sha256Update(&sha,
+                        FRACLegacy_[i].Data.data(),
+                        FRACLegacy_[i].Data.sizeOf());
+            sha256Final(&sha, coinbaseHash.begin());
 
+            // If there was a witness, hash again:
+            sha256Init(&sha);
+            sha256Update(&sha, coinbaseHash.begin(), coinbaseHash.size());
+            sha256Final(&sha, coinbaseHash.begin());
+        }
         FRACHeaders_[i].hashMerkleRoot = calculateMerkleRootWithPath(
-            coinbaseTxHash,
-            &fw->MerklePath[0],
+            coinbaseHash,
+            fw->MerklePath.data(),
             fw->MerklePath.size(),
             0
         );
 
-        FRACHeaderHashes_[FRACWorkMap_[i]] = FRACHeaders_[i].GetHash();
+        // 4.5) Place this FRAC header’s hash at the correct leaf in FRACHeaderHashes_
+        size_t leafIdx = static_cast<size_t>(FRACWorkMap_[i]);
+        FRACHeaderHashes_[leafIdx] = FRACHeaders_[i].GetHash();
     }
 
-    // Build the mm chain merkle root, reverse it, etc.
-    uint256 chainMerkleRoot = calculateMerkleRoot(&FRACHeaderHashes_[0], FRACHeaderHashes_.size());
-    std::reverse(chainMerkleRoot.begin(), chainMerkleRoot.end());
+    // 5) Build the mm-chain merkle root (over all FRACHeaderHashes_)
+    uint256 chainRoot = calculateMerkleRoot(FRACHeaderHashes_.data(),
+                                            FRACHeaderHashes_.size());
+    std::reverse(chainRoot.begin(), chainRoot.end());
 
+    // 6) Append “mm” header + chainRoot + virtualHashesNum + mmNonce to primary coinbase
     uint8_t buffer[1024];
     xmstream mmPayload(buffer, sizeof(buffer));
     mmPayload.reset();
+    static const unsigned char pchMergedMiningHeader[] = { 0xFA, 0xBE, 'm', 'm' };
     mmPayload.write(pchMergedMiningHeader, sizeof(pchMergedMiningHeader));
-    mmPayload.write(chainMerkleRoot.begin(), sizeof(uint256));
+    mmPayload.write(chainRoot.begin(), chainRoot.size());
     mmPayload.write<uint32_t>(virtualHashesNum);
     mmPayload.write<uint32_t>(mmNonce);
 
-    baseWork()->buildCoinbaseTx(mmPayload.data(), mmPayload.sizeOf(), miningCfg, BaseLegacy_, BaseWitness_);
+    // 7) Rebuild the primary coinbase with that “mmPayload” prefix:
+    baseWork()->buildCoinbaseTx(mmPayload.data(),
+                               mmPayload.sizeOf(),
+                               miningCfg,
+                               BaseLegacy_,
+                               BaseWitness_);
 }
 
 FRAC::Proto::BlockHashTy Stratum::MergedWork::shareHash() {

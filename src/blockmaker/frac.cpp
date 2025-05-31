@@ -66,17 +66,37 @@ Stratum::FracWork* Stratum::newPrimaryWork(int64_t stratumId,
                                                         : (void(delete work), nullptr);
 }
 
-StratumSingleWork* Stratum::newSecondaryWork(int64_t /*stratumId*/,
-                                             PoolBackend* /*backend*/,
-                                             size_t /*backendIdx*/,
-                                             const CMiningConfig& /*miningCfg*/,
-                                             const std::vector<uint8_t>& /*miningAddress*/,
-                                             const std::string& /*coinbaseMessage*/,
-                                             CBlockTemplate& /*blockTemplate*/,
-                                             std::string& error)
+StratumSingleWork* Stratum::newSecondaryWork(int64_t stratumId,
+                                            PoolBackend* backend,
+                                            size_t backendIdx,
+                                            const CMiningConfig& miningCfg,
+                                            const std::vector<uint8_t>& miningAddress,
+                                            const std::string& coinbaseMessage,
+                                            CBlockTemplate& blockTemplate,
+                                            std::string& error)
 {
-    error = "FRAC does not support standalone secondary work";
-    return nullptr;
+    // FRAC’s block templates will always be SHA-256 work:
+    if (blockTemplate.WorkType != EWorkBitcoin) {
+        error = "incompatible work type for FRAC secondary";
+        return nullptr;
+    }
+
+    // Exactly the same as newPrimaryWork(): construct a FracWork,
+    // load it from the template, and return it (or delete+fail).
+    auto* work = new Stratum::FracWork(
+        stratumId,
+        blockTemplate.UniqueWorkId,
+        backend,
+        backendIdx,
+        miningCfg,
+        miningAddress,
+        coinbaseMessage
+    );
+    if (!work->loadFromTemplate(blockTemplate, error)) {
+        delete work;
+        return nullptr;
+    }
+    return work;
 }
 
 //////////////////////////

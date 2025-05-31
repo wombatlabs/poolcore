@@ -105,6 +105,18 @@ Stratum::MergedWork::MergedWork(
     const CMiningConfig             &miningCfg
 ) : StratumMergedWork(stratumWorkId, first, second, miningCfg)
 {
+
+    if (second.size() > 128) {
+        // We only support up to 128 secondaries per FB‐chain.
+        MiningCfg_ = miningCfg;
+        throw std::runtime_error("FB: too many secondaries");
+    }
+    if (virtualHashesNum > (1u << 7)) {
+        // That would mean a 128‐element or bigger chain,
+        // which FB does not support. Bail out:
+        MiningCfg_ = miningCfg;
+        throw std::runtime_error("FB: invalid virtualHashesNum");
+    }
     // 1) Copy “primary” (BTC) header + merkle + consensus‐ctx:
     BTCHeader_       = btcWork()->Header;
     BTCMerklePath_   = btcWork()->MerklePath;

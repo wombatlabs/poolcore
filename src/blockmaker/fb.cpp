@@ -69,18 +69,18 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
   BTCMerklePath_ = btcWork()->MerklePath;
   BTCConsensusCtx_ = btcWork()->ConsensusCtx_;
 
-  FBHeader_.resize(second.size());
-  FBLegacy_.resize(second.size());
-  FBWitness_.resize(second.size());
+  fbHeaders_.resize(second.size());
+  fbLegacy_.resize(second.size());
+  fbWitness_.resize(second.size());
 
-  FBHeaderHashes_.resize(virtualHashesNum, uint256());
-  FBWorkMap_.assign(mmChainId.begin(), mmChainId.end());
+  fbHeaderHashes_.resize(virtualHashesNum, uint256());
+  fbWorkMap_.assign(mmChainId.begin(), mmChainId.end());
 
-  for (size_t workIdx = 0; workIdx < FBHeader_.size(); workIdx++) {
+  for (size_t workIdx = 0; workIdx < fbHeaders_.size(); workIdx++) {
     FB::Stratum::FbWork *work = fbWork(workIdx);
-    FB::Proto::BlockHeader &header = FBHeader_[workIdx];
-    BTC::CoinbaseTx &legacy = FBLegacy_[workIdx];
-    BTC::CoinbaseTx &witness = FBWitness_[workIdx];
+    FB::Proto::BlockHeader &header = fbHeaders_[workIdx];
+    BTC::CoinbaseTx &legacy = fbLegacy_[workIdx];
+    BTC::CoinbaseTx &witness = fbWitness_[workIdx];
 
     header = work->Header;
 
@@ -112,11 +112,11 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
       header.hashMerkleRoot = calculateMerkleRootWithPath(coinbaseTxHash, &work->MerklePath[0], work->MerklePath.size(), 0);
     }
 
-    FBHeaderHashes_[FBWorkMap_[workIdx]] = header.GetHash();
+    fbHeaderHashes_[fbWorkMap_[workIdx]] = header.GetHash();
   }
 
   // Calculate /reversed/ merkle root from FB header hashes
-  uint256 chainMerkleRoot = calculateMerkleRoot(&FBHeaderHashes_[0], FBHeaderHashes_.size());
+  uint256 chainMerkleRoot = calculateMerkleRoot(&fbHeaderHashes_[0], fbHeaderHashes_.size());
   std::reverse(chainMerkleRoot.begin(), chainMerkleRoot.end());
 
   // Prepare BTC coinbase
@@ -129,7 +129,7 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
   coinbaseMsg.write<uint32_t>(mmNonce);
   btcWork()->buildCoinbaseTx(coinbaseMsg.data(), coinbaseMsg.sizeOf(), miningCfg, BTCLegacy_, BTCWitness_);
 
-  FBConsensusCtx_ = fbWork(0)->ConsensusCtx_;
+  fbConsensusCtx_ = fbWork(0)->ConsensusCtx_;
 }
 
 bool Stratum::MergedWork::prepareForSubmit(const CWorkerConfig &workerCfg, const CStratumMessage &msg)
@@ -137,8 +137,8 @@ bool Stratum::MergedWork::prepareForSubmit(const CWorkerConfig &workerCfg, const
   if (!BTC::Stratum::Work::prepareForSubmitImpl(BTCHeader_, BTCHeader_.nVersion, BTCLegacy_, BTCWitness_, BTCMerklePath_, workerCfg, MiningCfg_, msg))
     return false;
 
-  for (size_t workIdx = 0; workIdx < FBHeader_.size(); workIdx++) {
-    FB::Proto::BlockHeader &header = FBHeader_[workIdx];
+  for (size_t workIdx = 0; workIdx < fbHeaders_.size(); workIdx++) {
+    FB::Proto::BlockHeader &header = fbHeaders_[workIdx];
     BTCWitness_.Data.seekSet(0);
     BTC::unserialize(BTCWitness_.Data, header.ParentBlockCoinbaseTx);
 
@@ -150,11 +150,11 @@ bool Stratum::MergedWork::prepareForSubmit(const CWorkerConfig &workerCfg, const
       header.MerkleBranch[j] = BTCMerklePath_[j];
 
     std::vector<uint256> path;
-    buildMerklePath(FBHeaderHashes_, FBWorkMap_[workIdx], path);
+    buildMerklePath(fbHeaderHashes_, fbWorkMap_[workIdx], path);
     header.ChainMerkleBranch.resize(path.size());
     for (size_t j = 0; j < path.size(); j++)
       header.ChainMerkleBranch[j] = path[j];
-    header.ChainIndex = FBWorkMap_[workIdx];
+    header.ChainIndex = fbWorkMap_[workIdx];
     header.ParentBlock = BTCHeader_;
   }
 

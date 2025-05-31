@@ -80,7 +80,7 @@ StratumSingleWork* Stratum::newSecondaryWork(int64_t /*stratumId*/,
 }
 
 //////////////////////////
-// 4) MergedWork constructor + virtual overrides
+// 4) MergedWork constructor  virtual overrides
 Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
                                 StratumSingleWork *first,
                                 std::vector<StratumSingleWork*> &second,
@@ -101,7 +101,7 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
     FRACWorkMap_.assign(mmChainId.begin(), mmChainId.end());
 
     // Build each FRAC sub-header exactly like DOGE does, but using SHA-256:
-    for (size_t i = 0; i < FRACHeaders_.size(); i++) {
+    for (size_t i = 0; i < FRACHeaders_.size(); i) {
         auto *fw = static_cast<Stratum::FracWork*>(second[i]);
         FRACHeaders_[i] = fw->Header;
 
@@ -206,7 +206,7 @@ bool Stratum::MergedWork::prepareForSubmit(const CWorkerConfig &workerCfg,
         return false;
     }
 
-    for (size_t i = 0; i < FRACHeaders_.size(); i++) {
+    for (size_t i = 0; i < FRACHeaders_.size(); i) {
         CCheckStatus st = FRAC::Stratum::FracWork::checkConsensusImpl(
                              FRACHeaders_[i],
                              FRACConsensusCtx_
@@ -261,13 +261,12 @@ CCheckStatus Stratum::MergedWork::checkConsensus(size_t workIdx) {
 namespace BTC {
 
 template<>
-inline void Io<FRAC::Proto::BlockHeader>::serialize(xmstream &s,
-                                                   const FRAC::Proto::BlockHeader &h)
+inline void Io<FRAC::Proto::BlockHeader>::serialize(xmstream &s, const FRAC::Proto::BlockHeader &h)
 {
-    // 1) Serialize “pure” header (six fields) exactly as BTC does:
+    // 1) Serialize the six-field “pure” header exactly as BTC does:
     Io<FRAC::Proto::PureBlockHeader>::serialize(s, h);
 
-    // 2) Then serialize all AuxPoW fields in FRAC order:
+    // 2) Then serialize all the AuxPoW fields in FRAC’s BlockHeader:
     Io<FRAC::Proto::Transaction>::serialize(s, h.ParentBlockCoinbaseTx);
     Io<uint256>::serialize(s, h.HashBlock);
     Io<xvector<uint256>>::serialize(s, h.MerkleBranch);
@@ -275,20 +274,6 @@ inline void Io<FRAC::Proto::BlockHeader>::serialize(xmstream &s,
     Io<xvector<uint256>>::serialize(s, h.ChainMerkleBranch);
     Io<int>::serialize(s, h.ChainIndex);
     Io<FRAC::Proto::PureBlockHeader>::serialize(s, h.ParentBlock);
-}
-
-template<>
-inline void Io<FRAC::Proto::BlockHeader>::deserialize(xmstream &s,
-                                                     FRAC::Proto::BlockHeader &h)
-{
-    Io<FRAC::Proto::PureBlockHeader>::deserialize(s, h);
-    Io<FRAC::Proto::Transaction>::deserialize(s, h.ParentBlockCoinbaseTx);
-    Io<uint256>::deserialize(s, h.HashBlock);
-    Io<xvector<uint256>>::deserialize(s, h.MerkleBranch);
-    Io<int>::deserialize(s, h.Index);
-    Io<xvector<uint256>>::deserialize(s, h.ChainMerkleBranch);
-    Io<int>::deserialize(s, h.ChainIndex);
-    Io<FRAC::Proto::PureBlockHeader>::deserialize(s, h.ParentBlock);
 }
 
 } // namespace BTC

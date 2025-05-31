@@ -1,9 +1,20 @@
+// utils.cpp
+#include "poolcommon/utils.h"
+
+#include <string>      // for std::string
+#include <cstdarg>     // for va_list, va_start, va_end, va_copy
+#include <stdexcept>   // for std::runtime_error
+#include <cstdint>     // for int64_t
+#include <cstdlib>     // for nullptr
+
 std::string vstrprintf(const char *format, va_list ap)
 {
-    char buffer[50000];
-    char* p = buffer;
-    int limit = sizeof(buffer);
+    // Start with a 50k stack buffer
+    char stackBuf[50000];
+    char *p = stackBuf;
+    int limit = sizeof(stackBuf);
     int ret;
+
     for (;;)
     {
         va_list arg_ptr;
@@ -15,19 +26,18 @@ std::string vstrprintf(const char *format, va_list ap)
 #endif
         va_end(arg_ptr);
 
-        // ─── Inserted check for vsnprintf error ───
         if (ret < 0) {
-            // Formatting failed (invalid format or arguments). Bail out.
+            // vsnprintf error (invalid format or arguments)
             throw std::runtime_error("vstrprintf: formatting error (vsnprintf returned negative)");
         }
 
         if (ret < limit) {
-            // Everything fit: `ret` is the number of characters written.
+            // Successfully formatted; ret is the number of characters written
             break;
         }
 
-        // Otherwise, ret >= limit means “buffer was too small,” so grow it:
-        if (p != buffer) {
+        // Buffer was too small; grow it and try again
+        if (p != stackBuf) {
             delete[] p;
         }
         limit *= 2;
@@ -35,13 +45,14 @@ std::string vstrprintf(const char *format, va_list ap)
         if (p == nullptr) {
             throw std::bad_alloc();
         }
+        // loop and retry
     }
 
-    std::string str(p, p + ret);
-    if (p != buffer) {
+    std::string result(p, p + ret);
+    if (p != stackBuf) {
         delete[] p;
     }
-    return str;
+    return result;
 }
 
 std::string real_strprintf(const std::string &format, int dummy, ...)
@@ -55,86 +66,85 @@ std::string real_strprintf(const std::string &format, int dummy, ...)
 
 std::string FormatMoney(int64_t n, int64_t rationalPartSize, bool fPlus)
 {
-  std::string result;
-  int64_t n_abs = (n > 0 ? n : -n);
-  int64_t quotient = n_abs/rationalPartSize;
-  int64_t remainder = n_abs%rationalPartSize;
-  result.reserve(64);
-  if (n < 0)
-    result.push_back('-');
-  else if (fPlus)
-    result.push_back('+');
+    // This function formats n/rationalPartSize with proper decimal point.
+    bool negative = (n < 0);
+    if (negative) n = -n;
 
-  auto begin = result.begin() + result.size();
-  do {
-    result.push_back('0' + quotient % 10);
-    quotient /= 10;
-  } while (quotient);
-  std::reverse(begin, result.end());
+    int64_t integerPart = n / rationalPartSize;
+    int64_t fractionalPart = n % rationalPartSize;
 
-  if (remainder) {
-    result.push_back('.');
-    auto begin = result.begin() + result.size();
-    bool printZeroes = false;
-    do {
-      char digit = remainder % 10;
-      printZeroes |= digit != 0;
-      if (printZeroes)
-        result.push_back('0' + digit);
-      remainder /= 10;
-      rationalPartSize /= 10;
-    } while (rationalPartSize > 1);
+    // Build the integer part
+    std::string s = std::to_string(integerPart);
 
-    std::reverse(begin, result.end());
-  }
+    // Add decimal point and fractional part, padding with leading zeros
+    if (fractionalPart > 0) {
+        std::string frac = std::to_string(fractionalPart);
+        // Pad leading zeros up to rationalPartSize's digit count
+        int64_t temp = rationalPartSize;
+        int digits = 0;
+        while (temp > 1) {
+            temp /= 10;
+            digits++;
+        }
+        if ((int)frac.size() < digits) {
+            frac = std::string(digits - frac.size(), '0') + frac;
+        }
+        s += "." + frac;
+    }
 
-  return result;
+    if (negative) {
+        s = "-" + s;
+    } else if (fPlus) {
+        s = "+" + s;
+    }
+    return s;
 }
 
 bool parseMoneyValue(const char *value, const int64_t rationalPartSize, int64_t *out)
 {
-  *out = 0;
-  int64_t fractionalMultiplier = rationalPartSize;
-  int64_t rationalPart = 0;
-  int64_t fractionalPart = 0;
-  const char *p = value;
-  char s;
+    // Parses a string like "123.45" into an int64_t = 123 * rationalPartSize + 45
+    // Supports optional leading '-' or '+'.
 
-  // Parse rational part
-  if (*p == 0)
-    return false;
-  for (;; p++) {
-    s = *p;
-    if (s >= '0' && s <= '9') {
-      rationalPart *= 10;
-      rationalPart += s - '0';
-    } else if (s == '.') {
-      break;
-    } else if (s == '\0') {
-      *out = rationalPart * rationalPartSize;
-      return true;
-    } else {
-      return false;
+    if (value == nullptr || out == nullptr) return false;
+
+    const char *p = value;
+    bool negative = false;
+    if (*p == '-') {
+        negative = true;
+        p++;
+    } else if (*p == '+') {
+        p++;
     }
-  }
 
-  // Parse fractional part
-  p++;
-  for (;; p++) {
-    s = *p;
-    if (s >= '0' && s <= '9') {
-      fractionalPart *= 10;
-      fractionalPart += s - '0';
-      fractionalMultiplier /= 10;
-      if (fractionalMultiplier == 0)
+    int64_t integerPart = 0;
+    while (*p && isdigit(*p)) {
+        integerPart = integerPart * 10 + (*p - '0');
+        p++;
+    }
+
+    int64_t fractionalPart = 0;
+    int64_t fractionalMultiplier = rationalPartSize / 10;
+
+    if (*p == '.') {
+        p++;
+        while (*p && isdigit(*p) && fractionalMultiplier > 0) {
+            fractionalPart += (int64_t)(*p - '0') * fractionalMultiplier;
+            fractionalMultiplier /= 10;
+            p++;
+        }
+        // Skip any extra digits
+        while (*p && isdigit(*p)) {
+            p++;
+        }
+    }
+
+    if (*p != '\0') {
+        // Unexpected character
         return false;
-    } else if (s == '\0') {
-      break;
-    } else {
-      return false;
     }
-  }
 
-  *out = rationalPart*rationalPartSize + fractionalPart*fractionalMultiplier;
-  return true;
+    int64_t result = integerPart * rationalPartSize + fractionalPart;
+    if (negative) result = -result;
+    *out = result;
+    return true;
 }

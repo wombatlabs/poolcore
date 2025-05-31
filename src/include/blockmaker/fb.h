@@ -2,7 +2,7 @@
 #pragma once
 
 #include "btc.h"
-#include "poolinstances/stratumWorkStorage.h"    // defines StratumSingleWork, ThreadConfig, etc.
+#include "poolinstances/stratumWorkStorage.h"    // defines StratumSingleWork, ThreadConfig, CStratumMessage, etc.
 #include "poolcommon/arith_uint256.h"
 #include "blockmaker/merkleTree.h"
 #include "blockmaker/serializeJson.h"
@@ -82,7 +82,7 @@ public:
 
     static double expectedWork(
         const BlockHeader       &header,
-        const CheckConsensusCtx & /*ctx*/    // ctx unused, but signature must match
+        const CheckConsensusCtx & /*ctx*/    // ctx is not used here, but must be in signature
     ) {
         return getDifficulty(header);
     }
@@ -150,7 +150,13 @@ public:
         virtual std::string blockHash(size_t workIdx) override;
         virtual void mutate() override;
         virtual void buildNotifyMessage(bool resetPreviousWork) override;
-        virtual bool prepareForSubmit(const CWorkerConfig &workerCfg, CStratumMessage &msg) override;
+
+        //
+        // ←── **FIX #1** ── Match base signature: second parameter must be `const CStratumMessage &`
+        //
+        virtual bool prepareForSubmit(const CWorkerConfig &workerCfg,
+                                      const CStratumMessage &msg) override;
+
         virtual void buildBlock(size_t workIdx, xmstream &blockHexData) override;
         virtual CCheckStatus checkConsensus(size_t workIdx) override;
 
@@ -203,7 +209,7 @@ public:
     }
 
     //
-    // ←── **CORRECTION #1** ── Change parameter to `ThreadConfig &threadCfg`  ── :contentReference[oaicite:2]{index=2}
+    // ←── **FIX #2** ── Must accept `ThreadConfig &` (not rapidjson::Value&) to match BTC::Stratum
     //
     static void workerConfigInitialize(CWorkerConfig &workerCfg, ThreadConfig &threadCfg) {
         BTC::Stratum::workerConfigInitialize(workerCfg, threadCfg);
@@ -214,7 +220,7 @@ public:
     }
 
     //
-    // ←── **CORRECTION #2** ── Change parameter to `CStratumMessage &msg` (non-const)  ── :contentReference[oaicite:3]{index=3}
+    // ←── **FIX #3** ── Must accept `CStratumMessage &` (non-const) to match BTC::Stratum
     //
     static void workerConfigOnSubscribe(
         CWorkerConfig     &workerCfg,
@@ -224,6 +230,15 @@ public:
         std::string       &subscribeInfo
     ) {
         BTC::Stratum::workerConfigOnSubscribe(workerCfg, miningCfg, msg, out, subscribeInfo);
+    }
+
+    //
+    // Builds (Stratum) “set_target” message. PoolCore’s generic code will call this.
+    // Doge implements it by delegating to BTC::Stratum::buildSendTargetMessage.
+    // We must do the same, otherwise `stratumSendTarget(...)` will not compile.
+    //
+    static void buildSendTargetMessage(xmstream &stream, double shareDiff) {
+        BTC::Stratum::buildSendTargetMessage(stream, shareDiff);
     }
 
     //

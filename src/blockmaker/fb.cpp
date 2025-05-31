@@ -33,7 +33,9 @@ std::vector<int> Stratum::buildChainMap(
     std::vector<int> chainMap;
     bool finished = true;
 
-    for (unsigned pathSize = merklePathSize(secondaries.size()); pathSize < 8; pathSize++) {
+    // Compute pathSize starting value from number of secondaries:
+    unsigned count = static_cast<unsigned>(secondaries.size());
+    for (unsigned pathSize = merklePathSize(count); pathSize < 8; pathSize++) {
         virtualHashesNum = 1u << pathSize;
         chainMap.resize(virtualHashesNum);
 
@@ -42,26 +44,40 @@ std::vector<int> Stratum::buildChainMap(
             std::fill(chainMap.begin(), chainMap.end(), 0);
 
             for (size_t workIdx = 0; workIdx < secondaries.size(); workIdx++) {
-                Stratum::FbWork *work = FbWork(workIdx);
+                // Retrieve the generic Work pointer and cast to FbWork*
+                FB::Stratum::FbWork *work = static_cast<FB::Stratum::FbWork*>(
+                    secondaries[workIdx]->Work
+                );
+
+                // Each FbWork has its own header version; chainId is (version >> 16)
                 uint32_t chainId = work->Header.nVersion >> 16;
+
+                // Determine where in this path the work should go
                 uint32_t indexInMerkle = getExpectedIndex(nonce, chainId, pathSize);
 
                 if (chainMap[indexInMerkle] == 0) {
                     chainMap[indexInMerkle] = 1;
                     result[workIdx] = indexInMerkle;
                 } else {
+                    // Collision: restart with next nonce
                     finished = false;
                     break;
                 }
             }
 
-            if (finished) break;
+            if (finished) {
+                // Found a nonce that yields no collisions
+                break;
+            }
         }
 
-        if (finished) break;
+        if (finished) {
+            // We found a valid mapping at this pathSize
+            break;
+        }
     }
 
-    return finished ? result : std::vector<int>();
+    return (finished ? result : std::vector<int>());
 }
 
 //

@@ -23,7 +23,6 @@ namespace FB {
 //
 // buildChainMap: identical to DOGE::buildChainMap, except we cast to FbWork*.
 //
-
 std::vector<int> Stratum::buildChainMap(
     std::vector<StratumSingleWork*> &secondaries,
     uint32_t                       &nonce,
@@ -33,7 +32,7 @@ std::vector<int> Stratum::buildChainMap(
     std::vector<int> chainMap;
     bool finished = true;
 
-    // Compute pathSize starting value from number of secondaries:
+    // Start pathSize from the minimal tree height that can hold all secondaries.
     unsigned count = static_cast<unsigned>(secondaries.size());
     for (unsigned pathSize = merklePathSize(count); pathSize < 8; pathSize++) {
         virtualHashesNum = 1u << pathSize;
@@ -44,22 +43,19 @@ std::vector<int> Stratum::buildChainMap(
             std::fill(chainMap.begin(), chainMap.end(), 0);
 
             for (size_t workIdx = 0; workIdx < secondaries.size(); workIdx++) {
-                // Retrieve the generic Work pointer and cast to FbWork*
+                // Cast the generic StratumSingleWork* directly to FbWork*
                 FB::Stratum::FbWork *work = static_cast<FB::Stratum::FbWork*>(
-                    secondaries[workIdx]->Work
+                    secondaries[workIdx]
                 );
 
-                // Each FbWork has its own header version; chainId is (version >> 16)
                 uint32_t chainId = work->Header.nVersion >> 16;
-
-                // Determine where in this path the work should go
                 uint32_t indexInMerkle = getExpectedIndex(nonce, chainId, pathSize);
 
                 if (chainMap[indexInMerkle] == 0) {
                     chainMap[indexInMerkle] = 1;
                     result[workIdx] = indexInMerkle;
                 } else {
-                    // Collision: restart with next nonce
+                    // Collision: try next nonce
                     finished = false;
                     break;
                 }

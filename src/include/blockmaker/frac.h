@@ -46,7 +46,7 @@ public:
     //
     // Initialize any consensus-related context (no extra state needed):
     //
-    static void checkConsensusInitialize(CheckConsensusCtx &ctx) { }
+    static void checkConsensusInitialize(CheckConsensusCtx &ctx);
 
     //
     // If VERSION_AUXPOW bit is set, validate ParentBlock under BTC rules.
@@ -54,23 +54,11 @@ public:
     //
     static CCheckStatus checkConsensus(const Proto::BlockHeader &header,
                                        CheckConsensusCtx &ctx,
-                                       Proto::ChainParams &chainParams)
-    {
-        if (header.nVersion & Proto::BlockHeader::VERSION_AUXPOW) {
-            // AuxPoW: validate parent-block’s PoW under BTC rules
-            return BTC::Proto::checkConsensus(header.ParentBlock, ctx, chainParams);
-        } else {
-            // No AuxPoW: validate this header directly
-            return BTC::Proto::checkConsensus(header, ctx, chainParams);
-        }
-    }
+                                       Proto::ChainParams &chainParams);
 
     static CCheckStatus checkConsensus(const Proto::Block &block,
                                        CheckConsensusCtx &ctx,
-                                       Proto::ChainParams &chainParams)
-    {
-        return checkConsensus(block.header, ctx, chainParams);
-    }
+                                       Proto::ChainParams &chainParams);
 
     //
     // Difficulty and expectedWork are identical to BTC’s:

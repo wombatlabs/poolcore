@@ -2,7 +2,7 @@
 #pragma once
 
 #include "btc.h"
-#include "poolinstances/stratumWorkStorage.h"
+#include "poolinstances/stratumWorkStorage.h"    // defines StratumSingleWork, ThreadConfig, etc.
 #include "poolcommon/arith_uint256.h"
 #include "blockmaker/merkleTree.h"
 #include "blockmaker/serializeJson.h"
@@ -82,7 +82,7 @@ public:
 
     static double expectedWork(
         const BlockHeader       &header,
-        const CheckConsensusCtx &ctx
+        const CheckConsensusCtx & /*ctx*/    // ctx unused, but signature must match
     ) {
         return getDifficulty(header);
     }
@@ -150,7 +150,7 @@ public:
         virtual std::string blockHash(size_t workIdx) override;
         virtual void mutate() override;
         virtual void buildNotifyMessage(bool resetPreviousWork) override;
-        virtual bool prepareForSubmit(const CWorkerConfig &workerCfg, const CStratumMessage &msg) override;
+        virtual bool prepareForSubmit(const CWorkerConfig &workerCfg, CStratumMessage &msg) override;
         virtual void buildBlock(size_t workIdx, xmstream &blockHexData) override;
         virtual CCheckStatus checkConsensus(size_t workIdx) override;
 
@@ -180,7 +180,7 @@ public:
         std::vector<FB::Proto::CheckConsensusCtx> fbConsensusCtx_;
         FB::Proto::ChainParams             fbChainParams_;
 
-        CMiningConfig                         MiningCfg_;
+        CMiningConfig                       MiningCfg_;
     };
 
     //
@@ -201,16 +201,25 @@ public:
     static void miningConfigInitialize(CMiningConfig &miningCfg, rapidjson::Value &instanceCfg) {
         BTC::Stratum::miningConfigInitialize(miningCfg, instanceCfg);
     }
-    static void workerConfigInitialize(CWorkerConfig &workerCfg, rapidjson::Value &threadCfg) {
+
+    //
+    // ←── **CORRECTION #1** ── Change parameter to `ThreadConfig &threadCfg`  ── :contentReference[oaicite:2]{index=2}
+    //
+    static void workerConfigInitialize(CWorkerConfig &workerCfg, ThreadConfig &threadCfg) {
         BTC::Stratum::workerConfigInitialize(workerCfg, threadCfg);
     }
+
     static void workerConfigSetupVersionRolling(CWorkerConfig &workerCfg, uint32_t versionMask) {
         BTC::Stratum::workerConfigSetupVersionRolling(workerCfg, versionMask);
     }
+
+    //
+    // ←── **CORRECTION #2** ── Change parameter to `CStratumMessage &msg` (non-const)  ── :contentReference[oaicite:3]{index=3}
+    //
     static void workerConfigOnSubscribe(
         CWorkerConfig     &workerCfg,
         CMiningConfig     &miningCfg,
-        const CStratumMessage &msg,
+        CStratumMessage   &msg,
         xmstream          &out,
         std::string       &subscribeInfo
     ) {
@@ -259,7 +268,7 @@ public:
 };
 
 //
-// Convenience alias “X” so other code can write FB::X::Proto / FB::X::Stratum
+// Convenience alias “X” so other code can write FB::X::Proto and FB::X::Stratum
 //
 struct X {
     using Proto   = FB::Proto;

@@ -166,5 +166,22 @@ public:
   // Build chain-map: same signature as DOGE’s buildChainMap
   static std::vector<int> buildChainMap(std::vector<StratumSingleWork*> &secondary, uint32_t &nonce, unsigned &virtualHashesNum);
 };
+
+struct X {
+  using Proto   = FRAC::Proto;
+  using Stratum = FRAC::Stratum;
+
+  // Forward any serialize/deserialize calls to BTC::Io<…>.
+  // (We do this because FRAC’s BlockHeader is just a BTC-like header plus aux-pow data,
+  //  so the low-level serialize/deserialize code lives in BTC::Io.)
+  template<typename T>
+  static inline void serialize(xmstream &src, const T &data) {
+    BTC::Io<T>::serialize(src, data);
+  }
+  template<typename T>
+  static inline void deserialize(xmstream &src, T &data) {
+    BTC::Io<T>::deserialize(src, data);
+  }
+};
   
 } // namespace FRAC

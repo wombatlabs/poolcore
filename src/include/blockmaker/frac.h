@@ -13,20 +13,19 @@ public:
     static constexpr const char *TickerName = "FRAC";
 
     //
-    // FRAC is a SHA-256 fork of Bitcoin, so we reuse BTC::Proto types:
+    // FRAC is a SHA-256 fork of Bitcoin, so reuse BTC::Proto types:
     //
-    using BlockHashTy = BTC::Proto::BlockHashTy;
-    using TxHashTy    = BTC::Proto::TxHashTy;
-    using AddressTy   = BTC::Proto::AddressTy;
-
-    // The “pure” header for FRAC is identical to BTC’s:
-    using PureBlockHeader = BTC::Proto::BlockHeader;
-
-    // Reuse BTC’s transaction types:
-    using TxIn        = BTC::Proto::TxIn;
-    using TxOut       = BTC::Proto::TxOut;
-    using TxWitness   = BTC::Proto::TxWitness;
-    using Transaction = BTC::Proto::Transaction;
+    using BlockHashTy       = BTC::Proto::BlockHashTy;
+    using TxHashTy          = BTC::Proto::TxHashTy;
+    using AddressTy         = BTC::Proto::AddressTy;
+    using PureBlockHeader   = BTC::Proto::BlockHeader;
+    using TxIn              = BTC::Proto::TxIn;
+    using TxOut             = BTC::Proto::TxOut;
+    using TxWitness         = BTC::Proto::TxWitness;
+    using Transaction       = BTC::Proto::Transaction;
+    using Block             = BTC::Proto::BlockTy<FRAC::Proto>;
+    using CheckConsensusCtx = BTC::Proto::CheckConsensusCtx;
+    using ChainParams       = BTC::Proto::ChainParams;
 
     //
     // ─── BLOCKHEADER ──────────────────────────────────────────────────────────────
@@ -35,27 +34,23 @@ public:
         static const int32_t VERSION_AUXPOW = (1 << 8);
 
         // AuxPoW fields (exactly parallel to DOGE’s layout):
-        Transaction                      ParentBlockCoinbaseTx;
-        uint256                          HashBlock;
-        xvector<uint256>                 MerkleBranch;
-        int                              Index;
-        xvector<uint256>                 ChainMerkleBranch;
-        int                              ChainIndex;
-        PureBlockHeader                  ParentBlock;
+        Transaction         ParentBlockCoinbaseTx;
+        uint256             HashBlock;
+        xvector<uint256>    MerkleBranch;
+        int                 Index;
+        xvector<uint256>    ChainMerkleBranch;
+        int                 ChainIndex;
+        PureBlockHeader     ParentBlock;
     };
 
-    using Block          = BTC::Proto::BlockTy<FRAC::Proto>;
-    using CheckConsensusCtx = BTC::Proto::CheckConsensusCtx;
-    using ChainParams      = BTC::Proto::ChainParams;
+    //
+    // Initialize any consensus-related context (no extra state needed):
+    //
+    static void checkConsensusInitialize(CheckConsensusCtx &ctx) { }
 
     //
-    // Initialize any consensus-related context (no extra state for FRAC):
-    //
-    static void checkConsensusInitialize(CheckConsensusCtx &ctx) {}
-
-    //
-    // If the VERSION_AUXPOW bit is set, we verify the ParentBlock (sha256 PoW)
-    // via BTC::Proto::checkConsensus. Otherwise, treat as a plain header.
+    // If VERSION_AUXPOW bit is set, validate ParentBlock under BTC rules.
+    // Otherwise, validate this header directly as a SHA-256 header.
     //
     static CCheckStatus checkConsensus(const Proto::BlockHeader &header,
                                        CheckConsensusCtx &ctx,
@@ -65,7 +60,7 @@ public:
             // AuxPoW: validate parent-block’s PoW under BTC rules
             return BTC::Proto::checkConsensus(header.ParentBlock, ctx, chainParams);
         } else {
-            // No AuxPoW: validate this header directly as a SHA-256 header
+            // No AuxPoW: validate this header directly
             return BTC::Proto::checkConsensus(header, ctx, chainParams);
         }
     }
@@ -90,7 +85,7 @@ public:
     }
 
     //
-    // Decode Base58 (or Bech32) addresses using BTC’s helper:
+    // Decode Base58/Bech32 addresses via BTC helper:
     //
     static bool decodeHumanReadableAddress(const std::string &hrAddress,
                                            const std::vector<uint8_t> &pubkeyAddressPrefix,
@@ -107,7 +102,7 @@ public:
 //
 class Stratum {
 public:
-    // FRAC uses the same “DifficultyFactor” as BTC:
+    // FRAC uses the same DifficultyFactor as BTC:
     static constexpr double DifficultyFactor = 1.0;
 
     //
@@ -125,9 +120,20 @@ public:
     static constexpr bool MergedMiningSupport = true;
 
     //
+    // ─── STRATUM MESSAGE DECODING ────────────────────────────────────────────────
+    //
+    static EStratumDecodeStatusTy decodeStratumMessage(CStratumMessage &msg,
+                                                       const char *in,
+                                                       size_t size)
+    {
+        // Delegate to BTC’s decoder
+        return BTC::Stratum::decodeStratumMessage(msg, in, size);
+    }
+
+    //
     // ─── PRIMARY / SECONDARY WORK ────────────────────────────────────────────────
     //
-    // Called when a new block template arrives for FRAC-as-standalone (primary):
+    // Called when a new block template arrives for FRAC-as-primary:
     //
     static FracWork* newPrimaryWork(int64_t stratumId,
                                     PoolBackend *backend,
@@ -139,8 +145,7 @@ public:
                                     std::string &error);
 
     //
-    // This would be invoked if FRAC were used as a “secondary” on its own port.
-    // We can leave it unimplemented (PoolCore won’t call it if you treat FRAC exclusively as aux-pow):
+    // Secondary FRAC work (if FRAC is also used as a secondary). Not needed if FRAC is only aux-pow:
     //
     static StratumSingleWork* newSecondaryWork(int64_t stratumId,
                                                PoolBackend *backend,
@@ -153,7 +158,7 @@ public:
 
     //
     // ─── MERGEDWORK CLASS ───────────────────────────────────────────────────────
-    // Implements a single “merged mining” job: primary (e.g. BTC) + one or more FRAC sub-headers
+    // Implements a merged-mining job: primary (e.g., BTC) + one or more FRAC headers
     //
     class MergedWork : public StratumMergedWork {
     public:
@@ -165,30 +170,30 @@ public:
                    unsigned virtualHashesNum,
                    const CMiningConfig &miningCfg);
 
-        // Return the hash that miners must target (primary header’s hash):
+        // Return the mining target hash (primary header’s hash)
         virtual Proto::BlockHashTy shareHash() override;
 
-        // Return block-hash for a given work index (0 = primary, ≥1 = FRAC sub-header):
+        // Return the block-hash for workIdx (0=primary, ≥1=FRAC sub-header)
         virtual std::string blockHash(size_t workIdx) override;
 
-        // Called when the daemon asks to update “nTime”:
+        // Update nTime on primary header
         virtual void mutate() override;
 
-        // Rebuild the “mining.notify” JSON with the updated header/coinbase:
+        // Rebuild “mining.notify” JSON payload
         virtual void buildNotifyMessage(bool resetPreviousWork) override;
 
-        // On share submission: first check primary PoW, then each FRAC aux-PoW branch:
+        // On share submission: check primary PoW, then each FRAC aux-PoW branch
         virtual bool prepareForSubmit(const CWorkerConfig &workerCfg,
                                       const CStratumMessage &msg) override;
 
-        // Build the final block blob for this index (0=primary, ≥1=FRAC):
+        // Build final block blob for a given index
         virtual void buildBlock(size_t workIdx, xmstream &blockHexData) override;
 
-        // Consensus check at submit-time:
+        // Consensus check at submit-time
         virtual CCheckStatus checkConsensus(size_t workIdx) override;
 
     private:
-        // Helpers to cast “Works_[i].Work” to the correct type:
+        // Helpers to cast “Works_[i].Work” to correct type
         BTC::Stratum::Work* baseWork() {
             return static_cast<BTC::Stratum::Work*>(Works_[0].Work);
         }
@@ -216,7 +221,7 @@ public:
     //
     // ─── buildChainMap(...) ──────────────────────────────────────────────────────
     // Given N FRAC secondary works, find an mm-nonce and a placement index so that
-    // each FRAC sub-header occupies a unique leaf in the “mm” merkle tree.
+    // each FRAC sub-header occupies a unique leaf in the mm Merkle tree.
     //
     static std::vector<int> buildChainMap(std::vector<StratumSingleWork*> &secondary,
                                           uint32_t &nonce,
@@ -224,16 +229,52 @@ public:
 
     //
     // ─── STATIC: miningConfigInitialize ───────────────────────────────────────────
-    // PoolCore’s StratumInstance<X> always calls X::Stratum::miningConfigInitialize(...)
+    // Called once per StratumInstance to parse the “instance” JSON block:
     //
-    static void miningConfigInitialize(CMiningConfig &miningCfg, rapidjson::Value &config) {
-        // Forward to BTC::Stratum’s initializer (FRAC has no extra JSON fields here)
+    static void miningConfigInitialize(CMiningConfig &miningCfg,
+                                       rapidjson::Value &config)
+    {
+        // Forward to BTC’s initializer (no extra JSON fields for FRAC)
         BTC::Stratum::miningConfigInitialize(miningCfg, config);
     }
 
     //
+    // ─── STATIC: workerConfigInitialize ──────────────────────────────────────────
+    // Called per new TCP connection to initialize CWorkerConfig:
+    //
+    static void workerConfigInitialize(CWorkerConfig &workerCfg,
+                                       ThreadConfig &threadCfg)
+    {
+        // Delegate to BTC’s implementation (sets extra-nonce, sessions, etc.)
+        BTC::Stratum::workerConfigInitialize(workerCfg, threadCfg);
+    }
+
+    //
+    // ─── STATIC: workerConfigSetupVersionRolling ─────────────────────────────────
+    // Called if “version rolling” is enabled in JSON:
+    //
+    static void workerConfigSetupVersionRolling(CWorkerConfig &workerCfg,
+                                                uint32_t versionMask)
+    {
+        BTC::Stratum::workerConfigSetupVersionRolling(workerCfg, versionMask);
+    }
+
+    //
+    // ─── STATIC: workerConfigOnSubscribe ─────────────────────────────────────────
+    // Called when a miner sends “mining.subscribe”:
+    //
+    static void workerConfigOnSubscribe(CWorkerConfig &workerCfg,
+                                        CMiningConfig &miningCfg,
+                                        CStratumMessage &msg,
+                                        xmstream &out,
+                                        std::string &subscribeInfo)
+    {
+        BTC::Stratum::workerConfigOnSubscribe(workerCfg, miningCfg, msg, out, subscribeInfo);
+    }
+
+    //
     // ─── STATIC: newMergedWork ────────────────────────────────────────────────────
-    // PoolCore’s StratumWorkStorage<X>::createWork(...) will call X::Stratum::newMergedWork(...)
+    // Called by StratumWorkStorage<X>::createWork(...) to build a merged-mining job:
     //
     static StratumMergedWork* newMergedWork(int64_t stratumId,
                                             StratumSingleWork *primaryWork,
@@ -262,12 +303,20 @@ public:
                               virtualHashesNum,
                               miningCfg);
     }
+
+    //
+    // ─── STATIC: buildSendTargetMessage ──────────────────────────────────────────
+    // Called by StratumInstance to send “mining.set_difficulty” back to miner:
+    //
+    static void buildSendTargetMessage(xmstream &stream, double difficulty) {
+        BTC::Stratum::buildSendTargetMessageImpl(stream, difficulty, DifficultyFactor);
+    }
 };
 
 //
 // ─── FRAC::X ──────────────────────────────────────────────────────────────────
-// Tells PoolCore how to wire up Proto and Stratum, plus serialize/deserialize
-//
+// Tells PoolCore how to wire Proto + Stratum, and how to serialize/deserialize:
+// 
 struct X {
     using Proto   = FRAC::Proto;
     using Stratum = FRAC::Stratum;

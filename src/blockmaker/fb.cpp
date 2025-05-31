@@ -1,6 +1,6 @@
 // fb.cpp
 
-#include "fb.h"
+#include "blockmaker/fb.h"
 #include "blockmaker/merkleTree.h"
 #include "blockmaker/serializeJson.h"
 

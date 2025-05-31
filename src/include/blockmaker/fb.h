@@ -34,17 +34,19 @@ public:
 
   using Block = BTC::Proto::BlockTy<FB::Proto>;
 
-  using CheckConsensusCtx = BTC::Proto::CheckConsensusCtx;
+   struct CheckConsensusCtx {
+    bool HasRtt = false;
+    uint32_t PrevBits;
+    int64_t PrevHeaderTime[4];
+
+    void initialize(CBlockTemplate&, const std::string&);
+    bool hasRtt() { return HasRtt; }
+  };
   using ChainParams = BTC::Proto::ChainParams;
 
   static void checkConsensusInitialize(CheckConsensusCtx&) {}
-  static CCheckStatus checkConsensus(const Proto::BlockHeader &header, CheckConsensusCtx&, Proto::ChainParams&) {
-    return header.nVersion & Proto::BlockHeader::VERSION_AUXPOW ?
-      BTC::Proto::checkPow(header.ParentBlock, header.nBits) :
-      BTC::Proto::checkPow(header, header.nBits);
-  }
-
-  static CCheckStatus checkConsensus(const Proto::Block &block, CheckConsensusCtx &ctx, Proto::ChainParams &chainParams) { return checkConsensus(block.header, ctx, chainParams); }
+  static CCheckStatus checkConsensus(const Proto::BlockHeader &header, CheckConsensusCtx &ctx, ChainParams&);
+  static CCheckStatus checkConsensus(const Proto::Block &block, CheckConsensusCtx &ctx, ChainParams &params) { return checkConsensus(block.header, ctx, params); }
   static double getDifficulty(const Proto::BlockHeader &header) { return BTC::difficultyFromBits(header.nBits, 29); }
   static double expectedWork(const Proto::BlockHeader &header, const CheckConsensusCtx&) { return getDifficulty(header); }
   static bool decodeHumanReadableAddress(const std::string &hrAddress, const std::vector<uint8_t> &pubkeyAddressPrefix, AddressTy &address) { return BTC::Proto::decodeHumanReadableAddress(hrAddress, pubkeyAddressPrefix, address); }

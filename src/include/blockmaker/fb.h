@@ -1,4 +1,4 @@
-// fract.h
+// fb.h
 #pragma once
 
 #include "btc.h"
@@ -7,7 +7,7 @@
 #include "blockmaker/merkleTree.h"
 #include "blockmaker/serializeJson.h"
 
-namespace FRACT {
+namespace FB {
 
 class Proto {
 public:
@@ -37,7 +37,7 @@ public:
         PureBlockHeader     ParentBlock;
     };
 
-    using Block = BTC::Proto::BlockTy<FRACT::Proto>;
+    using Block = BTC::Proto::BlockTy<FB::Proto>;
 
     template<typename T>
     static inline void serialize(xmstream &dst, const T &data) {
@@ -97,32 +97,32 @@ public:
 };
 
 //
-// Provide IO<> specialization so that FRACT::Proto::BlockHeader serializes just like AuxPoW in BTC.
+// Provide IO<> specialization so that FB::Proto::BlockHeader serializes just like AuxPoW in BTC.
 //
 namespace BTC {
 template<>
-struct Io<FRACT::Proto::BlockHeader> {
-    static void serialize(xmstream &dst, const FRACT::Proto::BlockHeader &data);
-    static void unserialize(xmstream &src, FRACT::Proto::BlockHeader &data);
+struct Io<FB::Proto::BlockHeader> {
+    static void serialize(xmstream &dst, const FB::Proto::BlockHeader &data);
+    static void unserialize(xmstream &src, FB::Proto::BlockHeader &data);
 };
 } // namespace BTC
 
 //
 // A helper to render JSON for the FB header (for getblocktemplate responses, etc.)
 //
-void serializeJsonInside(xmstream &stream, const FRACT::Proto::BlockHeader &header);
+void serializeJsonInside(xmstream &stream, const FB::Proto::BlockHeader &header);
 
-namespace FRACT {
+namespace FB {
 
 class Stratum {
 public:
     static constexpr double DifficultyFactor = 65536.0;
 
     //
-    // A “Work” object for FB—templated on Proto=FRACT::Proto and BTC’s header/coinbase builders.
+    // A “Work” object for FB—templated on Proto=FB::Proto and BTC’s header/coinbase builders.
     //
-    using FractWork = BTC::WorkTy<
-        FRACT::Proto,
+    using FbWork = BTC::WorkTy<
+        FB::Proto,
         BTC::Stratum::HeaderBuilder,
         BTC::Stratum::CoinbaseBuilder,
         BTC::Stratum::Notify,
@@ -157,9 +157,9 @@ public:
         BTC::Stratum::Work* btcWork() {
             return static_cast<BTC::Stratum::Work*>(Works_[0].Work);
         }
-        // For FB secondaries: index 'idx' in fractWork() corresponds to Works_[idx+1].Work
-        FractWork* fractWork(unsigned idx) {
-            return static_cast<FractWork*>(Works_[idx + 1].Work);
+        // For FB secondaries: index 'idx' in fbWork() corresponds to Works_[idx+1].Work
+        FbWork* fbWork(unsigned idx) {
+            return static_cast<FbWork*>(Works_[idx + 1].Work);
         }
 
         // “Primary” (BTC) header + meta:
@@ -170,20 +170,20 @@ public:
         BTC::Proto::CheckConsensusCtx   BTCConsensusCtx_;
 
         // “Secondary” (FB) headers + meta:
-        std::vector<FRACT::Proto::BlockHeader> fractHeaders_;
-        std::vector<BTC::CoinbaseTx>           fractLegacy_;
-        std::vector<BTC::CoinbaseTx>           fractWitness_;
-        std::vector<uint256>                   fractHeaderHashes_;
-        std::vector<int>                       fractWorkMap_;
-        std::vector<FRACT::Proto::CheckConsensusCtx> fractConsensusCtx_;
-        FRACT::Proto::ChainParams             fractChainParams_;
+        std::vector<FB::Proto::BlockHeader> fbHeaders_;
+        std::vector<BTC::CoinbaseTx>           fbLegacy_;
+        std::vector<BTC::CoinbaseTx>           fbWitness_;
+        std::vector<uint256>                   fbHeaderHashes_;
+        std::vector<int>                       fbWorkMap_;
+        std::vector<FB::Proto::CheckConsensusCtx> fbConsensusCtx_;
+        FB::Proto::ChainParams             fbChainParams_;
 
         CMiningConfig                         MiningCfg_;
     };
 
     //
     // Build a “chain map” for multiple FB secondaries:
-    //  – identical logic to DOGE’s buildChainMap, except the cast inside uses FractWork.
+    //  – identical logic to DOGE’s buildChainMap, except the cast inside uses FbWork.
     //
     static std::vector<int> buildChainMap(
         std::vector<StratumSingleWork*> &secondaries,
@@ -230,9 +230,9 @@ public:
     );
 
     //
-    // When FB appears as a “secondary” only (merged under a BTC primary), build a FractWork:
+    // When FB appears as a “secondary” only (merged under a BTC primary), build a FbWork:
     //
-    static FractWork* newSecondaryWork(
+    static FbWork* newSecondaryWork(
         int64_t                    stratumId,
         PoolBackend               *backend,
         size_t                     backendIdx,
@@ -257,11 +257,11 @@ public:
 };
 
 //
-// Convenience alias “X” so other code can write FRACT::X::Proto / FRACT::X::Stratum
+// Convenience alias “X” so other code can write FB::X::Proto / FB::X::Stratum
 //
 struct X {
-    using Proto   = FRACT::Proto;
-    using Stratum = FRACT::Stratum;
+    using Proto   = FB::Proto;
+    using Stratum = FB::Stratum;
 
     template<typename T>
     static inline void serialize(xmstream &dst, const T &data) {
@@ -273,4 +273,4 @@ struct X {
     }
 };
 
-} // namespace FRACT
+} // namespace FB

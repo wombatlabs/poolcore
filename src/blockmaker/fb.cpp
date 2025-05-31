@@ -1,6 +1,6 @@
-// fract.cpp
+// fb.cpp
 
-#include "blockmaker/fract.h"
+#include "blockmaker/fb.h"
 #include "blockmaker/merkleTree.h"
 #include "blockmaker/serializeJson.h"
 
@@ -18,11 +18,11 @@ static uint32_t getExpectedIndex(uint32_t nNonce, int nChainId, unsigned h) {
     return rand % (1 << h);
 }
 
-namespace FRACT {
+namespace FB {
 
 //
 // buildChainMap: identical to DOGE::buildChainMap except
-// we cast to FractWork* instead of DogeWork*.
+// we cast to FbWork* instead of DogeWork*.
 //
 
 std::vector<int> Stratum::buildChainMap(
@@ -43,7 +43,7 @@ std::vector<int> Stratum::buildChainMap(
             std::fill(chainMap.begin(), chainMap.end(), 0);
 
             for (size_t workIdx = 0; workIdx < secondaries.size(); workIdx++) {
-                FractWork *work = static_cast<FractWork*>(secondaries[workIdx]);
+                FbWork *work = static_cast<FbWork*>(secondaries[workIdx]);
                 uint32_t chainId = work->Header.nVersion >> 16;
                 uint32_t indexInMerkle = getExpectedIndex(nonce, chainId, pathSize);
 
@@ -66,7 +66,7 @@ std::vector<int> Stratum::buildChainMap(
 }
 
 //
-// MergedWork constructor: copy+adapt from DOGE::Stratum::MergedWork, replacing DOGE/LTC with FRACT/BTC.
+// MergedWork constructor: copy+adapt from DOGE::Stratum::MergedWork, replacing DOGE/LTC with FB/BTC.
 //
 
 Stratum::MergedWork::MergedWork(
@@ -85,18 +85,18 @@ Stratum::MergedWork::MergedWork(
     BTCConsensusCtx_ = btcWork()->ConsensusCtx;
 
     // 2) Prepare FB secondaries:
-    fractHeaders_.resize(second.size());
-    fractLegacy_.resize(second.size());
-    fractWitness_.resize(second.size());
-    fractHeaderHashes_.resize(virtualHashesNum, uint256());
-    fractWorkMap_.assign(mmChainId.begin(), mmChainId.end());
+    fbHeaders_.resize(second.size());
+    fbLegacy_.resize(second.size());
+    fbWitness_.resize(second.size());
+    fbHeaderHashes_.resize(virtualHashesNum, uint256());
+    fbWorkMap_.assign(mmChainId.begin(), mmChainId.end());
 
     // 3) Build “static” FB coinbase + compute each secondary’s merkle root hash:
-    for (size_t workIdx = 0; workIdx < fractHeaders_.size(); workIdx++) {
-        FractWork *work = fractWork(workIdx);
-        FRACT::Proto::BlockHeader &header = fractHeaders_[workIdx];
-        BTC::CoinbaseTx &legacy = fractLegacy_[workIdx];
-        BTC::CoinbaseTx &witness = fractWitness_[workIdx];
+    for (size_t workIdx = 0; workIdx < fbHeaders_.size(); workIdx++) {
+        FbWork *work = fbWork(workIdx);
+        FB::Proto::BlockHeader &header = fbHeaders_[workIdx];
+        BTC::CoinbaseTx &legacy = fbLegacy_[workIdx];
+        BTC::CoinbaseTx &witness = fbWitness_[workIdx];
 
         header = work->Header;
 
@@ -107,7 +107,7 @@ Stratum::MergedWork::MergedWork(
         work->buildCoinbaseTx(nullptr, 0, emptyCfg, legacy, witness);
 
         // Mark AuxPoW bit:
-        header.nVersion |= FRACT::Proto::BlockHeader::VERSION_AUXPOW;
+        header.nVersion |= FB::Proto::BlockHeader::VERSION_AUXPOW;
 
         // Compute coinbaseTxHash = double‐SHA256(legacy.Data):
         uint256 coinbaseTxHash;
@@ -130,11 +130,11 @@ Stratum::MergedWork::MergedWork(
         );
 
         // Store the hashed FB header at position mmChainId[workIdx]:
-        fractHeaderHashes_[mmChainId[workIdx]] = header.GetHash();
+        fbHeaderHashes_[mmChainId[workIdx]] = header.GetHash();
     }
 
-    // 4) Compute the “chain merkle root” over all fractHeaderHashes_[] and reverse bytes:
-    uint256 chainMerkleRoot = calculateMerkleRoot(&fractHeaderHashes_[0], fractHeaderHashes_.size());
+    // 4) Compute the “chain merkle root” over all fbHeaderHashes_[] and reverse bytes:
+    uint256 chainMerkleRoot = calculateMerkleRoot(&fbHeaderHashes_[0], fbHeaderHashes_.size());
     std::reverse(chainMerkleRoot.begin(), chainMerkleRoot.end());
 
     // 5) Pack <pchMergedMiningHeader> | <chainMerkleRoot> | <virtualHashesNum> | <mmNonce> into BTC coinbase extra‐data:
@@ -149,8 +149,8 @@ Stratum::MergedWork::MergedWork(
     btcWork()->buildCoinbaseTx(coinbaseMsg.data(), coinbaseMsg.sizeOf(), miningCfg, BTCLegacy_, BTCWitness_);
 
     // 6) Capture consensus context for each FB header so we can validate on submit:
-    fractConsensusCtx_.resize(second.size());
-    fractChainParams_ = /* load FB chain params (powLimit, etc.) from your config */;
+    fbConsensusCtx_.resize(second.size());
+    fbChainParams_ = /* load FB chain params (powLimit, etc.) from your config */;
     MiningCfg_       = miningCfg;
 }
 
@@ -162,8 +162,8 @@ Proto::BlockHashTy Stratum::MergedWork::shareHash() {
 std::string Stratum::MergedWork::blockHash(size_t workIdx) {
     if (workIdx == 0) {
         return BTCHeader_.GetHash().ToString();
-    } else if (workIdx - 1 < fractHeaders_.size()) {
-        return fractHeaders_[workIdx - 1].GetHash().ToString();
+    } else if (workIdx - 1 < fbHeaders_.size()) {
+        return fbHeaders_[workIdx - 1].GetHash().ToString();
     }
     return std::string();
 }
@@ -212,8 +212,8 @@ bool Stratum::MergedWork::prepareForSubmit(const CWorkerConfig &workerCfg, const
     }
 
     // 2) For each FB header, unpack the AuxPoW fields and verify its POW:
-    for (size_t workIdx = 0; workIdx < fractHeaders_.size(); workIdx++) {
-        FRACT::Proto::BlockHeader &header = fractHeaders_[workIdx];
+    for (size_t workIdx = 0; workIdx < fbHeaders_.size(); workIdx++) {
+        FB::Proto::BlockHeader &header = fbHeaders_[workIdx];
 
         // Rewind BTCWitness_.Data to the start, then unserialize the embedded FB ParentBlockCoinbaseTx:
         BTCWitness_.Data.seekSet(0);
@@ -232,22 +232,22 @@ bool Stratum::MergedWork::prepareForSubmit(const CWorkerConfig &workerCfg, const
         // Build the chain‐merkle‐branch for this FB header:
         std::vector<uint256> path;
         buildMerklePath(
-            fractHeaderHashes_,
-            fractWorkMap_[workIdx],
+            fbHeaderHashes_,
+            fbWorkMap_[workIdx],
             path
         );
         header.ChainMerkleBranch.resize(path.size());
         for (size_t j = 0; j < path.size(); j++) {
             header.ChainMerkleBranch[j] = path[j];
         }
-        header.ChainIndex   = fractWorkMap_[workIdx];
+        header.ChainIndex   = fbWorkMap_[workIdx];
         header.ParentBlock  = BTCHeader_;
 
         // Finally, verify this FB header’s POW:
-        CCheckStatus status = FRACT::Proto::checkConsensus(
+        CCheckStatus status = FB::Proto::checkConsensus(
             header,
-            fractConsensusCtx_[workIdx],
-            fractChainParams_
+            fbConsensusCtx_[workIdx],
+            fbChainParams_
         );
         if (!status.IsBlock) {
             return false;
@@ -261,11 +261,11 @@ void Stratum::MergedWork::buildBlock(size_t workIdx, xmstream &blockHexData) {
     if (workIdx == 0 && btcWork()) {
         // Submit primary (BTC):
         btcWork()->buildBlockImpl(BTCHeader_, BTCWitness_, blockHexData);
-    } else if (fractWork(workIdx - 1)) {
+    } else if (fbWork(workIdx - 1)) {
         // Submit secondary (FB):
-        fractWork(workIdx - 1)->buildBlockImpl(
-            fractHeaders_[workIdx - 1],
-            fractWitness_[workIdx - 1],
+        fbWork(workIdx - 1)->buildBlockImpl(
+            fbHeaders_[workIdx - 1],
+            fbWitness_[workIdx - 1],
             blockHexData
         );
     }
@@ -275,12 +275,12 @@ CCheckStatus Stratum::MergedWork::checkConsensus(size_t workIdx) {
     if (workIdx == 0 && btcWork()) {
         // Validate the primary (BTC) header:
         return BTC::Stratum::Work::checkConsensusImpl(BTCHeader_, BTCConsensusCtx_);
-    } else if (fractWork(workIdx - 1)) {
+    } else if (fbWork(workIdx - 1)) {
         // Validate this FB header’s POW:
-        return FRACT::Proto::checkConsensus(
-            fractHeaders_[workIdx - 1],
-            fractConsensusCtx_[workIdx - 1],
-            fractChainParams_
+        return FB::Proto::checkConsensus(
+            fbHeaders_[workIdx - 1],
+            fbConsensusCtx_[workIdx - 1],
+            fbChainParams_
         );
     }
     return CCheckStatus();
@@ -289,10 +289,10 @@ CCheckStatus Stratum::MergedWork::checkConsensus(size_t workIdx) {
 //
 // Io<Proto::BlockHeader> serialize already declared above; implement it here:
 //
-void BTC::Io<FRACT::Proto::BlockHeader>::serialize(xmstream &dst, const FRACT::Proto::BlockHeader &data) {
+void BTC::Io<FB::Proto::BlockHeader>::serialize(xmstream &dst, const FB::Proto::BlockHeader &data) {
     // Base BTC header:
-    BTC::serialize(dst, *(FRACT::Proto::PureBlockHeader*)&data);
-    if (data.nVersion & FRACT::Proto::BlockHeader::VERSION_AUXPOW) {
+    BTC::serialize(dst, *(FB::Proto::PureBlockHeader*)&data);
+    if (data.nVersion & FB::Proto::BlockHeader::VERSION_AUXPOW) {
         BTC::serialize(dst, data.ParentBlockCoinbaseTx);
         BTC::serialize(dst, data.HashBlock);
         BTC::serialize(dst, data.MerkleBranch);
@@ -303,10 +303,10 @@ void BTC::Io<FRACT::Proto::BlockHeader>::serialize(xmstream &dst, const FRACT::P
     }
 }
 
-void BTC::Io<FRACT::Proto::BlockHeader>::unserialize(xmstream &src, FRACT::Proto::BlockHeader &data) {
+void BTC::Io<FB::Proto::BlockHeader>::unserialize(xmstream &src, FB::Proto::BlockHeader &data) {
     // Base BTC header:
-    BTC::unserialize(src, *(FRACT::Proto::PureBlockHeader*)&data);
-    if (data.nVersion & FRACT::Proto::BlockHeader::VERSION_AUXPOW) {
+    BTC::unserialize(src, *(FB::Proto::PureBlockHeader*)&data);
+    if (data.nVersion & FB::Proto::BlockHeader::VERSION_AUXPOW) {
         BTC::unserialize(src, data.ParentBlockCoinbaseTx);
         BTC::unserialize(src, data.HashBlock);
         BTC::unserialize(src, data.MerkleBranch);
@@ -320,7 +320,7 @@ void BTC::Io<FRACT::Proto::BlockHeader>::unserialize(xmstream &src, FRACT::Proto
 //
 // JSON serialization helper for FB headers:
 //
-void serializeJsonInside(xmstream &stream, const FRACT::Proto::BlockHeader &header) {
+void serializeJsonInside(xmstream &stream, const FB::Proto::BlockHeader &header) {
     serializeJson(stream, "version",       header.nVersion);       stream.write(',');
     serializeJson(stream, "hashPrevBlock", header.hashPrevBlock);  stream.write(',');
     serializeJson(stream, "hashMerkleRoot",header.hashMerkleRoot); stream.write(',');
@@ -345,7 +345,7 @@ BTC::Stratum::Work* Stratum::newPrimaryWork(
         error = "incompatible work type";
         return nullptr;
     }
-    std::unique_ptr<FractWork> work(new FractWork(
+    std::unique_ptr<FbWork> work(new FbWork(
         stratumId,
         blockTemplate.UniqueWorkId,
         backend,
@@ -360,7 +360,7 @@ BTC::Stratum::Work* Stratum::newPrimaryWork(
 //
 // FB as a “secondary” under a BTC primary:
 //
-FractWork* Stratum::newSecondaryWork(
+FbWork* Stratum::newSecondaryWork(
     int64_t                    stratumId,
     PoolBackend               *backend,
     size_t                     backendIdx,
@@ -374,7 +374,7 @@ FractWork* Stratum::newSecondaryWork(
         error = "incompatible work type";
         return nullptr;
     }
-    std::unique_ptr<FractWork> work(new FractWork(
+    std::unique_ptr<FbWork> work(new FbWork(
         stratumId,
         blockTemplate.UniqueWorkId,
         backend,
@@ -420,4 +420,4 @@ StratumMergedWork* Stratum::newMergedWork(
     );
 }
 
-} // namespace FRACT
+} // namespace FB

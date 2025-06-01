@@ -67,7 +67,7 @@ public:
         return BTC::difficultyFromBits(header.nBits, 29);
     }
     static double expectedWork(const Proto::BlockHeader &header,
-                               const CheckConsensusCtx &ctx)
+                               const CheckConsensusCtx & /*ctx*/)
     {
         return getDifficulty(header);
     }
@@ -323,12 +323,15 @@ struct X {
 
 } // namespace FB
 
-
-
 //
 // ─── SPECIALIZE WorkTy<FB::Proto,…>::getCoinName() so that
 //       secondary.getCoinName() returns "FB" (instead of "") ──────────────────
 //
+// Note: Place this specialization in the BTC::Stratum namespace, not a global
+//       "namespace Stratum" block. This avoids colliding with the class
+//       BTC::Stratum that was already declared in btc.h.
+//
+
 namespace BTC {
 namespace Stratum {
 

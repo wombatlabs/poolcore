@@ -1,25 +1,14 @@
-// ====================
-// file: blockmaker/frac.cpp
-// ====================
-
 #include "blockmaker/frac.h"
 #include "blockmaker/merkleTree.h"
+#include "blockmaker/serializeJson.h"
 #include "poolcommon/arith_uint256.h"
 
-// … (other includes and code above) …
+static const unsigned char pchMergedMiningHeader[] = { 0xfa, 0xbe, 'm', 'm' };
 
 namespace FRAC {
 
-//
-// ── 1) FRAC::Stratum::buildChainMap(…) ─────────────────────────────────────────
-//
-// Returns a vector<int> of length = secondary.size(), where each entry
-// is the leaf‐index in [0 .. virtualHashesNum−1] for that secondary.  If no
-// collision‐free assignment is found (or inputs are invalid), returns empty.
-//
-// We strictly cap at 128 secondaries (i.e. 2^7 leaves) to avoid ever allocating
-// a huge vector.  In normal use (one or two secondaries), everything stays very small.
-//
+//////////////////////////
+// ─── FRAC::Stratum::buildChainMap ─────────────────────────────────────────────
 std::vector<int> Stratum::buildChainMap(std::vector<StratumSingleWork*> &secondary,
                                         uint32_t &nonce,
                                         unsigned &virtualHashesNum)
@@ -106,9 +95,93 @@ std::vector<int> Stratum::buildChainMap(std::vector<StratumSingleWork*> &seconda
     return std::vector<int>();
 }
 
-//
-// ── 2) FRAC::Stratum::MergedWork constructor ───────────────────────────────────
-//
+//////////////////////////
+// 2) checkConsensusInitialize & checkConsensus – parallel to DOGE but calling BTC
+void Proto::checkConsensusInitialize(CheckConsensusCtx &ctx) {
+    // nothing to do
+}
+
+CCheckStatus Proto::checkConsensus(const Proto::BlockHeader &header,
+                                   CheckConsensusCtx &ctx,
+                                   Proto::ChainParams &chainParams)
+{
+    if (header.nVersion & BlockHeader::VERSION_AUXPOW) {
+        return BTC::Proto::checkConsensus(header.ParentBlock, ctx, chainParams);
+    } else {
+        return BTC::Proto::checkConsensus(header, ctx, chainParams);
+    }
+}
+
+CCheckStatus Proto::checkConsensus(const Proto::Block &block,
+                                   CheckConsensusCtx &ctx,
+                                   Proto::ChainParams &chainParams)
+{
+    return checkConsensus(block.header, ctx, chainParams);
+}
+
+//////////////////////////
+// 3) newPrimaryWork / newSecondaryWork
+Stratum::FracWork* Stratum::newPrimaryWork(int64_t stratumId,
+                                           PoolBackend *backend,
+                                           size_t backendIdx,
+                                           const CMiningConfig &miningCfg,
+                                           const std::vector<uint8_t> &miningAddress,
+                                           const std::string &coinbaseMessage,
+                                           CBlockTemplate &blockTemplate,
+                                           std::string &error)
+{
+    if (blockTemplate.WorkType != EWorkBitcoin) {
+        error = "incompatible work type";
+        return nullptr;
+    }
+    auto *work = new Stratum::FracWork(stratumId,
+                                       blockTemplate.UniqueWorkId,
+                                       backend,
+                                       backendIdx,
+                                       miningCfg,
+                                       miningAddress,
+                                       coinbaseMessage);
+    return work->loadFromTemplate(blockTemplate, error) ? work
+                                                        : (void(delete work), nullptr);
+}
+
+StratumSingleWork* Stratum::newSecondaryWork(int64_t stratumId,
+                                            PoolBackend* backend,
+                                            size_t backendIdx,
+                                            const CMiningConfig& miningCfg,
+                                            const std::vector<uint8_t>& miningAddress,
+                                            const std::string& coinbaseMessage,
+                                            CBlockTemplate& blockTemplate,
+                                            std::string& error)
+{
+    // FRAC’s block templates will always be SHA-256 work:
+    if (blockTemplate.WorkType != EWorkBitcoin) {
+        error = "incompatible work type for FRAC secondary";
+        return nullptr;
+    }
+
+    // Exactly the same as newPrimaryWork(): construct a FracWork,
+    // load it from the template, and return it (or delete+fail).
+    auto* work = new Stratum::FracWork(
+        stratumId,
+        blockTemplate.UniqueWorkId,
+        backend,
+        backendIdx,
+        miningCfg,
+        miningAddress,
+        coinbaseMessage
+    );
+    if (!work->loadFromTemplate(blockTemplate, error)) {
+        delete work;
+        return nullptr;
+    }
+    return work;
+}
+
+//////////////////////////
+// 4) MergedWork constructor  virtual overrides
+// ─── FRAC::Stratum::MergedWork::MergedWork ────────────────────────────────────
+// ─── FRAC::Stratum::MergedWork::MergedWork ────────────────────────────────────
 Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
                                 StratumSingleWork *first,
                                 std::vector<StratumSingleWork*> &second,
@@ -228,11 +301,6 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
       BaseWitness_
     );
 }
-
-} // namespace FRAC
-
-// … (rest of file) …
-
 
 FRAC::Proto::BlockHashTy Stratum::MergedWork::shareHash() {
     return baseWork()->Header.GetHash();

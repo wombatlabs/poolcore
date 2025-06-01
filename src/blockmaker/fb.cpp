@@ -111,7 +111,6 @@ StratumSingleWork* Stratum::newSecondaryWork(int64_t stratumId,
 //////////////////////////
 // 4) MergedWork constructor  virtual overrides
 // ─── FB::Stratum::MergedWork::MergedWork ────────────────────────────────────
-// ─── FB::Stratum::MergedWork::MergedWork ────────────────────────────────────
 Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
                                 StratumSingleWork *primaryWork,
                                 std::vector<StratumSingleWork *> &second,
@@ -220,7 +219,7 @@ bool Stratum::MergedWork::prepareForSubmit(const CWorkerConfig &workerCfg,
         return false;
     }
 
-    for (size_t i = 0; i < FBHeaders_.size(); i) {
+    for (size_t i = 0; i < FBHeaders_.size(); i++) {
         CCheckStatus st = FB::Stratum::FbWork::checkConsensusImpl(
                              FBHeaders_[i],
                              FBConsensusCtx_
@@ -265,7 +264,6 @@ CCheckStatus Stratum::MergedWork::checkConsensus(size_t workIdx) {
 //
 // 5) newMergedWork / miningConfigInitialize / workerConfigInitialize (already in header)
 //    – no further definitions needed here in the cpp because they’re static inline.
-//
 
 } // namespace FB
 

@@ -118,7 +118,7 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
                                 uint32_t mmNonce,
                                 unsigned virtualHashesNum,
                                 const CMiningConfig &miningCfg)
-    : StratumSingleWork(stratumWorkId, primaryWork->ServerJobId_)
+    : StratumMergedWork(stratumWorkId, primaryWork, second, miningCfg)
 {
     size_t secCount = second.size();
     LOG_F(INFO, "[FB::MergedWork] starting: secCount=%zu, virtualHashesNum=%u (no.name)",
@@ -138,7 +138,7 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
 
     // Build Fractal/AuxPoW header set for each secondary:
     for (size_t i = 0; i < secCount; i++) {
-        auto *work = static_cast<Stratum::FBWork *>(second[i]);
+        auto *work = static_cast<Stratum::FbWork *>(second[i]);
         FBHeaders_[i] = work->Header;
         FBLegacy_[i] = work->Legacy;
         FBWitness_[i] = work->Witness;

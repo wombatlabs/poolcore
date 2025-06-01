@@ -114,10 +114,10 @@ StratumSingleWork* Stratum::newSecondaryWork(int64_t stratumId,
 // ─── FB::Stratum::MergedWork::MergedWork ────────────────────────────────────
 Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
                                 StratumSingleWork *primaryWork,
-                                const std::vector<StratumSingleWork *> &second,
-                                const std::vector<int> &chainMap,
+                                std::vector<StratumSingleWork *> &second,
+                                std::vector<int> &chainMap,
+                                uint32_t mmNonce,
                                 unsigned virtualHashesNum,
-                                unsigned long mmNonce,
                                 const CMiningConfig &miningCfg)
     : StratumSingleWork(stratumWorkId, primaryWork->ServerJobId_)
 {

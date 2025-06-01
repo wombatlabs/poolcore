@@ -1,182 +1,114 @@
+// ====================
+// file: blockmaker/frac.cpp
+// ====================
+
 #include "blockmaker/frac.h"
 #include "blockmaker/merkleTree.h"
-#include "blockmaker/serializeJson.h"
 #include "poolcommon/arith_uint256.h"
 
-static const unsigned char pchMergedMiningHeader[] = { 0xfa, 0xbe, 'm', 'm' };
+// … (other includes and code above) …
 
 namespace FRAC {
 
-//////////////////////////
-// ─── FRAC::Stratum::buildChainMap ─────────────────────────────────────────────
+//
+// ── 1) FRAC::Stratum::buildChainMap(…) ─────────────────────────────────────────
+//
+// Returns a vector<int> of length = secondary.size(), where each entry
+// is the leaf‐index in [0 .. virtualHashesNum−1] for that secondary.  If no
+// collision‐free assignment is found (or inputs are invalid), returns empty.
+//
+// We strictly cap at 128 secondaries (i.e. 2^7 leaves) to avoid ever allocating
+// a huge vector.  In normal use (one or two secondaries), everything stays very small.
+//
 std::vector<int> Stratum::buildChainMap(std::vector<StratumSingleWork*> &secondary,
                                         uint32_t &nonce,
                                         unsigned &virtualHashesNum)
 {
     size_t secCount = secondary.size();
 
-    // If no secondaries, nothing to map:
+    // If there are zero secondaries → nothing to merge, return empty.
     if (secCount == 0) {
         return std::vector<int>();
     }
 
-    // We support up to 128 secondaries at most (2^7). Anything larger is nonsensical.
+    // Cap maximum allowed secondaries to 128.  Anything larger is not supported.
     if (secCount > 128) {
-        // Too many FRAC secondaries—fail early
         return std::vector<int>();
     }
 
-    // RESULT must have exactly one entry per secondary work
+    // Prepare the result array, one slot per secondary
     std::vector<int> result(secCount, -1);
 
-    // If there is only one secondary, pathSize starts at 0; otherwise compute minimum bits needed
+    // Decide the starting pathSize:
+    //   if secCount == 1 → minPathSize = 0
+    //   otherwise → compute smallest pathSize such that (2^pathSize) ≥ secCount
     unsigned minPathSize = (secCount > 1)
                            ? (31 - __builtin_clz(static_cast<unsigned>((secCount << 1) - 1)))
                            : 0;
 
-    // Try pathSize from minPathSize up to 7 (i.e. virtualHashesNum = 1<<pathSize, so at most 128)
+    // Try pathSize = minPathSize .. 7  (i.e. 2^pathSize ∈ {1,2,4,8,…,128})
     for (unsigned pathSize = minPathSize; pathSize < 8; pathSize++) {
-        // Compute number of "virtual leaves" = 2^pathSize
+        // Number of “virtual leaves” in this Merkle layer
         virtualHashesNum = (1u << pathSize);
 
-        // Sanity check: virtualHashesNum should never exceed 128 here
+        // If somehow 2^pathSize exceeds 128, bail out
         if (virtualHashesNum > 128) {
-            // We refuse to allocate more than 128 leaves
             return std::vector<int>();
         }
 
-        // Create a fresh chainMap of length virtualHashesNum, initialized to 0
+        // A fresh map of size = virtualHashesNum, all initialized to 0
         std::vector<int> chainMap(virtualHashesNum, 0);
 
         bool foundCollisionFree = true;
+
+        // Try every possible nonce in [0..virtualHashesNum−1]
         for (nonce = 0; nonce < virtualHashesNum; nonce++) {
             foundCollisionFree = true;
             std::fill(chainMap.begin(), chainMap.end(), 0);
 
-            // Try to assign each secondary to a distinct leaf index
             for (size_t i = 0; i < secCount; i++) {
                 auto *work = static_cast<Stratum::FracWork*>(secondary[i]);
-                // FRAC’s "chain ID" is in the high 16 bits of nVersion
+                // FRAC chain‐ID is in the top 16 bits of the version:
                 uint32_t chainId = (work->Header.nVersion >> 16);
 
-                // Generate a pseudorandom index in [0, virtualHashesNum)
+                // Build a pseudorandom index in [0..virtualHashesNum−1]:
                 uint32_t randv = nonce;
                 randv = randv * 1103515245 + 12345;
                 randv += chainId;
                 randv = randv * 1103515245 + 12345;
-                uint32_t idx = randv & (virtualHashesNum - 1);
+                uint32_t idx = randv & (virtualHashesNum - 1);  // same as % virtualHashesNum
 
                 if (chainMap[idx] == 0) {
                     chainMap[idx] = 1;
                     result[i] = static_cast<int>(idx);
-                } else {
+                }
+                else {
+                    // collision at leaf “idx” → try next nonce
                     foundCollisionFree = false;
                     break;
                 }
             }
 
             if (foundCollisionFree) {
-                // We found a nonce that places all secondaries into unique leaves
+                // We successfully placed all secondaries into unique leaves
                 break;
             }
         }
 
         if (foundCollisionFree) {
-            // SUCCESS: return exactly one entry per secondary
+            // Return a length‐secCount vector, e.g. {0} if secCount==1
             return result;
         }
-        // Otherwise, increase pathSize (doubling virtualHashesNum) and try again
+        // Otherwise increase pathSize → (2^pathSize doubles) and try again up to pathSize=7
     }
 
-    // If no collision-free assignment was found up to pathSize=7, fail
+    // No collision‐free assignment found up to pathSize=7 (i.e. 128 leaves)
     return std::vector<int>();
 }
 
-//////////////////////////
-// 2) checkConsensusInitialize & checkConsensus – parallel to DOGE but calling BTC
-void Proto::checkConsensusInitialize(CheckConsensusCtx &ctx) {
-    // nothing to do
-}
-
-CCheckStatus Proto::checkConsensus(const Proto::BlockHeader &header,
-                                   CheckConsensusCtx &ctx,
-                                   Proto::ChainParams &chainParams)
-{
-    if (header.nVersion & BlockHeader::VERSION_AUXPOW) {
-        return BTC::Proto::checkConsensus(header.ParentBlock, ctx, chainParams);
-    } else {
-        return BTC::Proto::checkConsensus(header, ctx, chainParams);
-    }
-}
-
-CCheckStatus Proto::checkConsensus(const Proto::Block &block,
-                                   CheckConsensusCtx &ctx,
-                                   Proto::ChainParams &chainParams)
-{
-    return checkConsensus(block.header, ctx, chainParams);
-}
-
-//////////////////////////
-// 3) newPrimaryWork / newSecondaryWork
-Stratum::FracWork* Stratum::newPrimaryWork(int64_t stratumId,
-                                           PoolBackend *backend,
-                                           size_t backendIdx,
-                                           const CMiningConfig &miningCfg,
-                                           const std::vector<uint8_t> &miningAddress,
-                                           const std::string &coinbaseMessage,
-                                           CBlockTemplate &blockTemplate,
-                                           std::string &error)
-{
-    if (blockTemplate.WorkType != EWorkBitcoin) {
-        error = "incompatible work type";
-        return nullptr;
-    }
-    auto *work = new Stratum::FracWork(stratumId,
-                                       blockTemplate.UniqueWorkId,
-                                       backend,
-                                       backendIdx,
-                                       miningCfg,
-                                       miningAddress,
-                                       coinbaseMessage);
-    return work->loadFromTemplate(blockTemplate, error) ? work
-                                                        : (void(delete work), nullptr);
-}
-
-StratumSingleWork* Stratum::newSecondaryWork(int64_t stratumId,
-                                            PoolBackend* backend,
-                                            size_t backendIdx,
-                                            const CMiningConfig& miningCfg,
-                                            const std::vector<uint8_t>& miningAddress,
-                                            const std::string& coinbaseMessage,
-                                            CBlockTemplate& blockTemplate,
-                                            std::string& error)
-{
-    // FRAC’s block templates will always be SHA-256 work:
-    if (blockTemplate.WorkType != EWorkBitcoin) {
-        error = "incompatible work type for FRAC secondary";
-        return nullptr;
-    }
-
-    // Exactly the same as newPrimaryWork(): construct a FracWork,
-    // load it from the template, and return it (or delete+fail).
-    auto* work = new Stratum::FracWork(
-        stratumId,
-        blockTemplate.UniqueWorkId,
-        backend,
-        backendIdx,
-        miningCfg,
-        miningAddress,
-        coinbaseMessage
-    );
-    if (!work->loadFromTemplate(blockTemplate, error)) {
-        delete work;
-        return nullptr;
-    }
-    return work;
-}
-
-//////////////////////////
-// ─── FRAC::Stratum::MergedWork::MergedWork ────────────────────────────────────
+//
+// ── 2) FRAC::Stratum::MergedWork constructor ───────────────────────────────────
+//
 Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
                                 StratumSingleWork *first,
                                 std::vector<StratumSingleWork*> &second,
@@ -188,61 +120,58 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
 {
     size_t secCount = second.size();
 
-    // If somehow there are zero secondaries, we cannot build a merged work.
-    // In that scenario, keep this object "invalid" by leaving FRACHeaders_ empty.
+    // If there are no secondaries, do nothing (invalid merged‐work).
     if (secCount == 0) {
         return;
     }
 
-    // We only allow up to 128 secondaries in practice. If more somehow appear, bail.
+    // Cap secondaries at 128 (2^7). Anything beyond is unsupported.
     if (secCount > 128) {
         return;
     }
 
-    // 1) Copy primary (BTC-like) fields from the "first" work:
+    // 1) Copy “primary” (BTC-like) fields from the first StratumSingleWork:
     BaseHeader_       = baseWork()->Header;
     BaseMerklePath_   = baseWork()->MerklePath;
     BaseConsensusCtx_ = baseWork()->ConsensusCtx_;
 
-    // 2) Allocate exactly secCount slots for each FRAC sub-header & its coinbases:
+    // 2) Allocate exactly secCount slots for each FRAC sub‐header and its coinbases:
     FRACHeaders_.resize(secCount);
     FRACLegacy_.resize(secCount);
     FRACWitness_.resize(secCount);
 
-    // 3) Ensure virtualHashesNum does not exceed 128:
+    // 3) Ensure virtualHashesNum ∈ [1..128]:
     if (virtualHashesNum == 0 || virtualHashesNum > 128) {
-        // Bad virtualHashesNum → leave this object invalid
         return;
     }
 
-    // Resize the vector that holds each sub-header's hash in the merged-mining merkle:
+    // Allocate exactly virtualHashesNum slots for FRACHeaderHashes_ (filled later)
     FRACHeaderHashes_.resize(virtualHashesNum, uint256());
 
-    // 4) Copy chainMap (mmChainId) into FRACWorkMap_; must be exactly secCount long:
+    // 4) mmChainId must be exactly secCount long (one entry per secondary)
     if (mmChainId.size() != secCount) {
-        // Mismatch → invalid
         return;
     }
     FRACWorkMap_.assign(mmChainId.begin(), mmChainId.end());
 
-    // 5) Build each FRAC sub-header in order:
+    // 5) Now build each FRAC sub‐header in order:
     for (size_t i = 0; i < secCount; i++) {
         auto *fw = static_cast<Stratum::FracWork*>(second[i]);
 
-        // 5.1) Copy the template header from the secondary’s StratumSingleWork:
+        // 5.1) Copy that secondary’s “bare” FRAC header:
         FRACHeaders_[i] = fw->Header;
 
-        // 5.2) Build a “static” FRAC coinbase (no extra-nonce) so we can compute its merkle:
+        // 5.2) Build a “static” FRAC coinbase (no extra‐nonce) so we can hash Merkle:
         CMiningConfig dummyExtra{};
         dummyExtra.FixedExtraNonceSize   = 0;
         dummyExtra.MutableExtraNonceSize = 0;
         fw->buildCoinbaseTx(nullptr, 0, dummyExtra,
                             FRACLegacy_[i], FRACWitness_[i]);
 
-        // 5.3) Turn on the AuxPoW version bit in that sub-header:
+        // 5.3) Flip on the AuxPoW version bit in that sub‐header:
         FRACHeaders_[i].nVersion |= FRAC::Proto::BlockHeader::VERSION_AUXPOW;
 
-        // 5.4) Compute the merkle root of that FRAC sub-block:
+        // 5.4) Compute that sub‐header’s Merkle root from its coinbase:
         uint256 coinbaseHash;
         {
             CCtxSha256 sha;
@@ -252,7 +181,6 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
                         FRACLegacy_[i].Data.sizeOf());
             sha256Final(&sha, coinbaseHash.begin());
 
-            // If there is a witness, do the second SHA route:
             sha256Init(&sha);
             sha256Update(&sha, coinbaseHash.begin(), coinbaseHash.size());
             sha256Final(&sha, coinbaseHash.begin());
@@ -264,17 +192,17 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
             0
         );
 
-        // 5.5) Place this sub-header’s hash at the correct “leaf index”:
+        // 5.5) Place that sub‐header’s hash into the correct “leaf” index:
         size_t leafIdx = static_cast<size_t>(FRACWorkMap_[i]);
         if (leafIdx < FRACHeaderHashes_.size()) {
             FRACHeaderHashes_[leafIdx] = FRACHeaders_[i].GetHash();
         } else {
-            // Out-of-bounds leaf index → invalid, bail
+            // If out of bounds, abort the constructor (invalid).
             return;
         }
     }
 
-    // 6) Build the merged-mining chain merkle root over FRACHeaderHashes_:
+    // 6) Build the merged‐mining chain Merkle root over FRACHeaderHashes_:
     uint256 chainRoot = calculateMerkleRoot(
         FRACHeaderHashes_.data(),
         FRACHeaderHashes_.size()
@@ -291,7 +219,7 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
     mmPayload.write<uint32_t>(virtualHashesNum);
     mmPayload.write<uint32_t>(mmNonce);
 
-    // 8) Rebuild the primary coinbase by prefixing that mmPayload:
+    // 8) Finally, rebuild the primary (BTC) coinbase with that mmPayload prefix:
     baseWork()->buildCoinbaseTx(
       mmPayload.data(),
       mmPayload.sizeOf(),
@@ -300,6 +228,11 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
       BaseWitness_
     );
 }
+
+} // namespace FRAC
+
+// … (rest of file) …
+
 
 FRAC::Proto::BlockHashTy Stratum::MergedWork::shareHash() {
     return baseWork()->Header.GetHash();

@@ -14,7 +14,7 @@ std::vector<int> Stratum::buildChainMap(std::vector<StratumSingleWork*> &seconda
                                         uint32_t &nonce,
                                         unsigned &virtualHashesNum)
 {
-    LOG_F(INFO, "[FRAC::buildChainMap] Instance “%s” saw %zu secondaries", InstanceName_.c_str(), secondary.size());
+    LOG_F(INFO, "[FB::buildChainMap] saw %zu secondaries  (no.name)", secondary.size());
     size_t secCount = secondary.size();
 
     // If there are zero secondaries → nothing to merge, return empty.
@@ -37,17 +37,15 @@ std::vector<int> Stratum::buildChainMap(std::vector<StratumSingleWork*> &seconda
                            ? (31 - __builtin_clz(static_cast<unsigned>((secCount << 1) - 1)))
                            : 0;
     
-    LOG_F(INFO,
-          "[FRAC::buildChainMap] “%s”: minPathSize=%u → will try up to 2^7",
-          InstanceName_.c_str(), minPathSize);
+    LOG_F(INFO, "[FB::buildChainMap]  minPathSize=%u (no.name)", minPathSize);
 
     // Try pathSize = minPathSize .. 7  (i.e. 2^pathSize ∈ {1,2,4,8,…,128})
     for (unsigned pathSize = minPathSize; pathSize < 8; pathSize++) {
         // Number of “virtual leaves” in this Merkle layer
         virtualHashesNum = (1u << pathSize);
 
-        LOG_F(INFO, "[FRAC::buildChainMap] “%s”: with pathSize=%u, virtualHashesNum=%u",
-              InstanceName_.c_str(), pathSize, virtualHashesNum);
+        LOG_F(INFO, "[FB::buildChainMap]  with pathSize=%u, virtualHashesNum=%u (no.name)",
+              pathSize, virtualHashesNum);
 
         // If somehow 2^pathSize exceeds 128, bail out
         if (virtualHashesNum > 128) {
@@ -202,8 +200,8 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
 {
     size_t secCount = second.size();
 
-    LOG_F(INFO, "[FRAC::MergedWork] starting “%s”: secCount=%zu, virtualHashesNum=%u",
-          InstanceName_.c_str(), secCount, virtualHashesNum);
+    LOG_F(INFO, "[FB::MergedWork] starting: secCount=%zu, virtualHashesNum=%u (no.name)",
+          secCount, virtualHashesNum);
 
     // If there are no secondaries, do nothing (invalid merged‐work).
     if (secCount == 0) {
@@ -215,9 +213,8 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
         return;
     }
 
-    LOG_F(INFO,
-          "[FRAC::MergedWork] “%s”: allocating FRACHeaders_ for %zu sub-headers, and FRACHeaderHashes_ for %u leaves",
-          InstanceName_.c_str(), secCount, virtualHashesNum);
+    LOG_F(INFO, "[FB::MergedWork]  allocating FBHeaders_ for %zu sub-headers, FBHeaderHashes_ for %u leaves (no.name)",
+          secCount, virtualHashesNum);
 
     // 1) Copy “primary” (BTC-like) fields from the first StratumSingleWork:
     BaseHeader_       = baseWork()->Header;

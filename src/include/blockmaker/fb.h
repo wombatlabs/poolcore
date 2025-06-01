@@ -97,10 +97,10 @@ public:
     // WorkTy: reuse BTC’s Stratum work pipeline (HeaderBuilder, CoinbaseBuilder, etc.)
     //
     using FbWork = BTC::WorkTy< FB::Proto,
-                                  BTC::Stratum::HeaderBuilder,
-                                  BTC::Stratum::CoinbaseBuilder,
-                                  BTC::Stratum::Notify,
-                                  BTC::Stratum::Prepare >;
+                                BTC::Stratum::HeaderBuilder,
+                                BTC::Stratum::CoinbaseBuilder,
+                                BTC::Stratum::Notify,
+                                BTC::Stratum::Prepare >;
 
     //
     // Enable AuxPoW / merged-mining support:
@@ -124,13 +124,13 @@ public:
     // Called when a new block template arrives for FB-as-primary:
     //
     static FbWork* newPrimaryWork(int64_t stratumId,
-                                    PoolBackend *backend,
-                                    size_t backendIdx,
-                                    const CMiningConfig &miningCfg,
-                                    const std::vector<uint8_t> &miningAddress,
-                                    const std::string &coinbaseMessage,
-                                    CBlockTemplate &blockTemplate,
-                                    std::string &error);
+                                  PoolBackend *backend,
+                                  size_t backendIdx,
+                                  const CMiningConfig &miningCfg,
+                                  const std::vector<uint8_t> &miningAddress,
+                                  const std::string &coinbaseMessage,
+                                  CBlockTemplate &blockTemplate,
+                                  std::string &error);
 
     //
     // Secondary FB work (if FB is also used as a secondary). Not needed if FB is only aux-pow:
@@ -304,12 +304,13 @@ public:
 //
 // ─── FB::X ──────────────────────────────────────────────────────────────────
 // Tells PoolCore how to wire Proto + Stratum, and how to serialize/deserialize:
-// 
+//
+// (All low-level (de)serialization is handled by BTC::Io<T>.)
+//
 struct X {
     using Proto   = FB::Proto;
     using Stratum = FB::Stratum;
 
-    // All low-level (de)serialization is handled by BTC::Io<T>
     template<typename T>
     static inline void serialize(xmstream &src, const T &data) {
         BTC::Io<T>::serialize(src, data);
@@ -321,3 +322,25 @@ struct X {
 };
 
 } // namespace FB
+
+
+
+//
+// ─── SPECIALIZE WorkTy<FB::Proto,…>::getCoinName() so that
+//       secondary.getCoinName() returns "FB" (instead of "") ──────────────────
+//
+namespace BTC {
+namespace Stratum {
+
+template<>
+inline std::string WorkTy<FB::Proto,
+                          HeaderBuilder,
+                          CoinbaseBuilder,
+                          Notify,
+                          Prepare>::getCoinName() const
+{
+    return "FB";
+}
+
+} // namespace Stratum
+} // namespace BTC

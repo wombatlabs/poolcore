@@ -327,13 +327,11 @@ struct X {
 // ─── SPECIALIZE WorkTy<FB::Proto,…>::getCoinName() so that
 //       secondary.getCoinName() returns "FB" (instead of "") ──────────────────
 //
-// Note: Place this specialization in the BTC::Stratum namespace, not a global
-//       "namespace Stratum" block. This avoids colliding with the class
-//       BTC::Stratum that was already declared in btc.h.
+// Note: Place this specialization in namespace BTC, not in a namespace named Stratum,
+//       because BTC::Stratum is a class, not a namespace.  WorkTy lives in namespace BTC.
 //
 
 namespace BTC {
-namespace Stratum {
 
 template<>
 inline std::string WorkTy<FB::Proto,
@@ -345,5 +343,4 @@ inline std::string WorkTy<FB::Proto,
     return "FB";
 }
 
-} // namespace Stratum
 } // namespace BTC

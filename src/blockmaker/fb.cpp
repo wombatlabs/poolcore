@@ -137,9 +137,7 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
     )
 {
     size_t secCount = second.size();
-    LOG_F(INFO,
-          "[FB::MergedWork] starting: secCount=%zu, virtualHashesNum=%u",
-          secCount, virtualHashesNum);
+    //LOG_F(INFO, "[FB::MergedWork] starting: secCount=%zu, virtualHashesNum=%u", secCount, virtualHashesNum);
 
     if (secCount == 0 || virtualHashesNum == 0 || secCount > 128) {
         // nothing further if no secondaries or nonsensical count

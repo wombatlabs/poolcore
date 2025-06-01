@@ -66,8 +66,8 @@ public:
     static double getDifficulty(const Proto::BlockHeader& header) {
         return BTC::difficultyFromBits(header.nBits, 29);
     }
-    static double expectedWork(const Proto::BlockHeader& /*header*/,
-                               const CheckConsensusCtx& /*ctx*/) {
+    static double expectedWork(const Proto::BlockHeader& header,
+                               const CheckConsensusCtx& ctx) {
         // For FB, simply reuse BTC difficulty logic:
         return getDifficulty(header);
     }

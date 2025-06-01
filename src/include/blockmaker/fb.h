@@ -3,17 +3,17 @@
 #include "blockmaker/btc.h"
 #include "poolinstances/stratumWorkStorage.h"
 
-namespace FRAC {
+namespace FB {
 
 //
 // ─── PROTO ────────────────────────────────────────────────────────────────────
 //
 class Proto {
 public:
-    static constexpr const char *TickerName = "FRAC";
+    static constexpr const char *TickerName = "FB";
 
     //
-    // FRAC is a SHA-256 fork of Bitcoin, so reuse BTC::Proto types:
+    // FB is a SHA-256 fork of Bitcoin, so reuse BTC::Proto types:
     //
     using BlockHashTy       = BTC::Proto::BlockHashTy;
     using TxHashTy          = BTC::Proto::TxHashTy;
@@ -23,7 +23,7 @@ public:
     using TxOut             = BTC::Proto::TxOut;
     using TxWitness         = BTC::Proto::TxWitness;
     using Transaction       = BTC::Proto::Transaction;
-    using Block             = BTC::Proto::BlockTy<FRAC::Proto>;
+    using Block             = BTC::Proto::BlockTy<FB::Proto>;
     using CheckConsensusCtx = BTC::Proto::CheckConsensusCtx;
     using ChainParams       = BTC::Proto::ChainParams;
 
@@ -90,13 +90,13 @@ public:
 //
 class Stratum {
 public:
-    // FRAC uses the same DifficultyFactor as BTC:
+    // FB uses the same DifficultyFactor as BTC:
     static constexpr double DifficultyFactor = 1.0;
 
     //
     // WorkTy: reuse BTC’s Stratum work pipeline (HeaderBuilder, CoinbaseBuilder, etc.)
     //
-    using FracWork = BTC::WorkTy< FRAC::Proto,
+    using FbWork = BTC::WorkTy< FB::Proto,
                                   BTC::Stratum::HeaderBuilder,
                                   BTC::Stratum::CoinbaseBuilder,
                                   BTC::Stratum::Notify,
@@ -121,9 +121,9 @@ public:
     //
     // ─── PRIMARY / SECONDARY WORK ────────────────────────────────────────────────
     //
-    // Called when a new block template arrives for FRAC-as-primary:
+    // Called when a new block template arrives for FB-as-primary:
     //
-    static FracWork* newPrimaryWork(int64_t stratumId,
+    static FbWork* newPrimaryWork(int64_t stratumId,
                                     PoolBackend *backend,
                                     size_t backendIdx,
                                     const CMiningConfig &miningCfg,
@@ -133,7 +133,7 @@ public:
                                     std::string &error);
 
     //
-    // Secondary FRAC work (if FRAC is also used as a secondary). Not needed if FRAC is only aux-pow:
+    // Secondary FB work (if FB is also used as a secondary). Not needed if FB is only aux-pow:
     //
     static StratumSingleWork* newSecondaryWork(int64_t stratumId,
                                                PoolBackend *backend,
@@ -146,7 +146,7 @@ public:
 
     //
     // ─── MERGEDWORK CLASS ───────────────────────────────────────────────────────
-    // Implements a merged-mining job: primary (e.g., BTC) + one or more FRAC headers
+    // Implements a merged-mining job: primary (e.g., BTC) + one or more FB headers
     //
     class MergedWork : public StratumMergedWork {
     public:
@@ -161,7 +161,7 @@ public:
         // Return the mining target hash (primary header’s hash)
         virtual Proto::BlockHashTy shareHash() override;
 
-        // Return the block-hash for workIdx (0=primary, ≥1=FRAC sub-header)
+        // Return the block-hash for workIdx (0=primary, ≥1=FB sub-header)
         virtual std::string blockHash(size_t workIdx) override;
 
         // Update nTime on primary header
@@ -170,7 +170,7 @@ public:
         // Rebuild “mining.notify” JSON payload
         virtual void buildNotifyMessage(bool resetPreviousWork) override;
 
-        // On share submission: check primary PoW, then each FRAC aux-PoW branch
+        // On share submission: check primary PoW, then each FB aux-PoW branch
         virtual bool prepareForSubmit(const CWorkerConfig &workerCfg,
                                       const CStratumMessage &msg) override;
 
@@ -185,8 +185,8 @@ public:
         BTC::Stratum::Work* baseWork() {
             return static_cast<BTC::Stratum::Work*>(Works_[0].Work);
         }
-        FRAC::Stratum::FracWork* fracWork(unsigned index) {
-            return static_cast<FRAC::Stratum::FracWork*>(Works_[index + 1].Work);
+        FB::Stratum::FbWork* fbWork(unsigned index) {
+            return static_cast<FB::Stratum::FbWork*>(Works_[index + 1].Work);
         }
 
     private:
@@ -197,19 +197,19 @@ public:
         std::vector<uint256>             BaseMerklePath_;
         BTC::Proto::CheckConsensusCtx    BaseConsensusCtx_;
 
-        // FRAC sub-headers & coinbases for each aux-pow work
-        std::vector<FRAC::Proto::BlockHeader> FRACHeaders_;
-        std::vector<BTC::CoinbaseTx>           FRACLegacy_;
-        std::vector<BTC::CoinbaseTx>           FRACWitness_;
-        std::vector<uint256>                   FRACHeaderHashes_;
-        std::vector<int>                       FRACWorkMap_;
-        FRAC::Proto::CheckConsensusCtx         FRACConsensusCtx_;
+        // FB sub-headers & coinbases for each aux-pow work
+        std::vector<FB::Proto::BlockHeader> FBHeaders_;
+        std::vector<BTC::CoinbaseTx>           FBLegacy_;
+        std::vector<BTC::CoinbaseTx>           FBWitness_;
+        std::vector<uint256>                   FBHeaderHashes_;
+        std::vector<int>                       FBWorkMap_;
+        FB::Proto::CheckConsensusCtx         FBConsensusCtx_;
     };
 
     //
     // ─── buildChainMap(...) ──────────────────────────────────────────────────────
-    // Given N FRAC secondary works, find an mm-nonce and a placement index so that
-    // each FRAC sub-header occupies a unique leaf in the mm Merkle tree.
+    // Given N FB secondary works, find an mm-nonce and a placement index so that
+    // each FB sub-header occupies a unique leaf in the mm Merkle tree.
     //
     static std::vector<int> buildChainMap(std::vector<StratumSingleWork*> &secondary,
                                           uint32_t &nonce,
@@ -222,7 +222,7 @@ public:
     static void miningConfigInitialize(CMiningConfig &miningCfg,
                                        rapidjson::Value &config)
     {
-        // Forward to BTC’s initializer (no extra JSON fields for FRAC)
+        // Forward to BTC’s initializer (no extra JSON fields for FB)
         BTC::Stratum::miningConfigInitialize(miningCfg, config);
     }
 
@@ -302,12 +302,12 @@ public:
 };
 
 //
-// ─── FRAC::X ──────────────────────────────────────────────────────────────────
+// ─── FB::X ──────────────────────────────────────────────────────────────────
 // Tells PoolCore how to wire Proto + Stratum, and how to serialize/deserialize:
 // 
 struct X {
-    using Proto   = FRAC::Proto;
-    using Stratum = FRAC::Stratum;
+    using Proto   = FB::Proto;
+    using Stratum = FB::Stratum;
 
     // All low-level (de)serialization is handled by BTC::Io<T>
     template<typename T>
@@ -320,4 +320,4 @@ struct X {
     }
 };
 
-} // namespace FRAC
+} // namespace FB

@@ -1,14 +1,14 @@
-#include "blockmaker/frac.h"
+#include "blockmaker/fb.h"
 #include "blockmaker/merkleTree.h"
 #include "blockmaker/serializeJson.h"
 #include "poolcommon/arith_uint256.h"
 
 static const unsigned char pchMergedMiningHeader[] = { 0xfa, 0xbe, 'm', 'm' };
 
-namespace FRAC {
+namespace FB {
 
 //////////////////////////
-// ─── FRAC::Stratum::buildChainMap ─────────────────────────────────────────────
+// ─── FB::Stratum::buildChainMap ─────────────────────────────────────────────
 std::vector<int> Stratum::buildChainMap(std::vector<StratumSingleWork*> &secondary,
                                         uint32_t &nonce,
                                         unsigned &virtualHashesNum)
@@ -56,8 +56,8 @@ std::vector<int> Stratum::buildChainMap(std::vector<StratumSingleWork*> &seconda
             std::fill(chainMap.begin(), chainMap.end(), 0);
 
             for (size_t i = 0; i < secCount; i++) {
-                auto *work = static_cast<Stratum::FracWork*>(secondary[i]);
-                // FRAC chain‐ID is in the top 16 bits of the version:
+                auto *work = static_cast<Stratum::FbWork*>(secondary[i]);
+                // FB chain‐ID is in the top 16 bits of the version:
                 uint32_t chainId = (work->Header.nVersion >> 16);
 
                 // Build a pseudorandom index in [0..virtualHashesNum−1]:
@@ -121,7 +121,7 @@ CCheckStatus Proto::checkConsensus(const Proto::Block &block,
 
 //////////////////////////
 // 3) newPrimaryWork / newSecondaryWork
-Stratum::FracWork* Stratum::newPrimaryWork(int64_t stratumId,
+Stratum::FbWork* Stratum::newPrimaryWork(int64_t stratumId,
                                            PoolBackend *backend,
                                            size_t backendIdx,
                                            const CMiningConfig &miningCfg,
@@ -134,7 +134,7 @@ Stratum::FracWork* Stratum::newPrimaryWork(int64_t stratumId,
         error = "incompatible work type";
         return nullptr;
     }
-    auto *work = new Stratum::FracWork(stratumId,
+    auto *work = new Stratum::FbWork(stratumId,
                                        blockTemplate.UniqueWorkId,
                                        backend,
                                        backendIdx,
@@ -154,15 +154,15 @@ StratumSingleWork* Stratum::newSecondaryWork(int64_t stratumId,
                                             CBlockTemplate& blockTemplate,
                                             std::string& error)
 {
-    // FRAC’s block templates will always be SHA-256 work:
+    // FB’s block templates will always be SHA-256 work:
     if (blockTemplate.WorkType != EWorkBitcoin) {
-        error = "incompatible work type for FRAC secondary";
+        error = "incompatible work type for FB secondary";
         return nullptr;
     }
 
-    // Exactly the same as newPrimaryWork(): construct a FracWork,
+    // Exactly the same as newPrimaryWork(): construct a FbWork,
     // load it from the template, and return it (or delete+fail).
-    auto* work = new Stratum::FracWork(
+    auto* work = new Stratum::FbWork(
         stratumId,
         blockTemplate.UniqueWorkId,
         backend,
@@ -180,8 +180,8 @@ StratumSingleWork* Stratum::newSecondaryWork(int64_t stratumId,
 
 //////////////////////////
 // 4) MergedWork constructor  virtual overrides
-// ─── FRAC::Stratum::MergedWork::MergedWork ────────────────────────────────────
-// ─── FRAC::Stratum::MergedWork::MergedWork ────────────────────────────────────
+// ─── FB::Stratum::MergedWork::MergedWork ────────────────────────────────────
+// ─── FB::Stratum::MergedWork::MergedWork ────────────────────────────────────
 Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
                                 StratumSingleWork *first,
                                 std::vector<StratumSingleWork*> &second,
@@ -208,41 +208,41 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
     BaseMerklePath_   = baseWork()->MerklePath;
     BaseConsensusCtx_ = baseWork()->ConsensusCtx_;
 
-    // 2) Allocate exactly secCount slots for each FRAC sub‐header and its coinbases:
-    FRACHeaders_.resize(secCount);
-    FRACLegacy_.resize(secCount);
-    FRACWitness_.resize(secCount);
+    // 2) Allocate exactly secCount slots for each FB sub‐header and its coinbases:
+    FBHeaders_.resize(secCount);
+    FBLegacy_.resize(secCount);
+    FBWitness_.resize(secCount);
 
     // 3) Ensure virtualHashesNum ∈ [1..128]:
     if (virtualHashesNum == 0 || virtualHashesNum > 128) {
         return;
     }
 
-    // Allocate exactly virtualHashesNum slots for FRACHeaderHashes_ (filled later)
-    FRACHeaderHashes_.resize(virtualHashesNum, uint256());
+    // Allocate exactly virtualHashesNum slots for FBHeaderHashes_ (filled later)
+    FBHeaderHashes_.resize(virtualHashesNum, uint256());
 
     // 4) mmChainId must be exactly secCount long (one entry per secondary)
     if (mmChainId.size() != secCount) {
         return;
     }
-    FRACWorkMap_.assign(mmChainId.begin(), mmChainId.end());
+    FBWorkMap_.assign(mmChainId.begin(), mmChainId.end());
 
-    // 5) Now build each FRAC sub‐header in order:
+    // 5) Now build each FB sub‐header in order:
     for (size_t i = 0; i < secCount; i++) {
-        auto *fw = static_cast<Stratum::FracWork*>(second[i]);
+        auto *fw = static_cast<Stratum::FbWork*>(second[i]);
 
-        // 5.1) Copy that secondary’s “bare” FRAC header:
-        FRACHeaders_[i] = fw->Header;
+        // 5.1) Copy that secondary’s “bare” FB header:
+        FBHeaders_[i] = fw->Header;
 
-        // 5.2) Build a “static” FRAC coinbase (no extra‐nonce) so we can hash Merkle:
+        // 5.2) Build a “static” FB coinbase (no extra‐nonce) so we can hash Merkle:
         CMiningConfig dummyExtra{};
         dummyExtra.FixedExtraNonceSize   = 0;
         dummyExtra.MutableExtraNonceSize = 0;
         fw->buildCoinbaseTx(nullptr, 0, dummyExtra,
-                            FRACLegacy_[i], FRACWitness_[i]);
+                            FBLegacy_[i], FBWitness_[i]);
 
         // 5.3) Flip on the AuxPoW version bit in that sub‐header:
-        FRACHeaders_[i].nVersion |= FRAC::Proto::BlockHeader::VERSION_AUXPOW;
+        FBHeaders_[i].nVersion |= FB::Proto::BlockHeader::VERSION_AUXPOW;
 
         // 5.4) Compute that sub‐header’s Merkle root from its coinbase:
         uint256 coinbaseHash;
@@ -250,15 +250,15 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
             CCtxSha256 sha;
             sha256Init(&sha);
             sha256Update(&sha,
-                        FRACLegacy_[i].Data.data(),
-                        FRACLegacy_[i].Data.sizeOf());
+                        FBLegacy_[i].Data.data(),
+                        FBLegacy_[i].Data.sizeOf());
             sha256Final(&sha, coinbaseHash.begin());
 
             sha256Init(&sha);
             sha256Update(&sha, coinbaseHash.begin(), coinbaseHash.size());
             sha256Final(&sha, coinbaseHash.begin());
         }
-        FRACHeaders_[i].hashMerkleRoot = calculateMerkleRootWithPath(
+        FBHeaders_[i].hashMerkleRoot = calculateMerkleRootWithPath(
             coinbaseHash,
             fw->MerklePath.data(),
             fw->MerklePath.size(),
@@ -266,19 +266,19 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
         );
 
         // 5.5) Place that sub‐header’s hash into the correct “leaf” index:
-        size_t leafIdx = static_cast<size_t>(FRACWorkMap_[i]);
-        if (leafIdx < FRACHeaderHashes_.size()) {
-            FRACHeaderHashes_[leafIdx] = FRACHeaders_[i].GetHash();
+        size_t leafIdx = static_cast<size_t>(FBWorkMap_[i]);
+        if (leafIdx < FBHeaderHashes_.size()) {
+            FBHeaderHashes_[leafIdx] = FBHeaders_[i].GetHash();
         } else {
             // If out of bounds, abort the constructor (invalid).
             return;
         }
     }
 
-    // 6) Build the merged‐mining chain Merkle root over FRACHeaderHashes_:
+    // 6) Build the merged‐mining chain Merkle root over FBHeaderHashes_:
     uint256 chainRoot = calculateMerkleRoot(
-        FRACHeaderHashes_.data(),
-        FRACHeaderHashes_.size()
+        FBHeaderHashes_.data(),
+        FBHeaderHashes_.size()
     );
     std::reverse(chainRoot.begin(), chainRoot.end());
 
@@ -302,15 +302,15 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
     );
 }
 
-FRAC::Proto::BlockHashTy Stratum::MergedWork::shareHash() {
+FB::Proto::BlockHashTy Stratum::MergedWork::shareHash() {
     return baseWork()->Header.GetHash();
 }
 
 std::string Stratum::MergedWork::blockHash(size_t workIdx) {
     if (workIdx == 0) {
         return baseWork()->Header.GetHash().ToString();
-    } else if (workIdx - 1 < FRACHeaders_.size()) {
-        return FRACHeaders_[workIdx - 1].GetHash().ToString();
+    } else if (workIdx - 1 < FBHeaders_.size()) {
+        return FBHeaders_[workIdx - 1].GetHash().ToString();
     } else {
         return std::string();
     }
@@ -359,10 +359,10 @@ bool Stratum::MergedWork::prepareForSubmit(const CWorkerConfig &workerCfg,
         return false;
     }
 
-    for (size_t i = 0; i < FRACHeaders_.size(); i) {
-        CCheckStatus st = FRAC::Stratum::FracWork::checkConsensusImpl(
-                             FRACHeaders_[i],
-                             FRACConsensusCtx_
+    for (size_t i = 0; i < FBHeaders_.size(); i) {
+        CCheckStatus st = FB::Stratum::FbWork::checkConsensusImpl(
+                             FBHeaders_[i],
+                             FBConsensusCtx_
                          );
         if (!st.IsBlock) {
             return false;
@@ -375,11 +375,11 @@ void Stratum::MergedWork::buildBlock(size_t workIdx, xmstream &blockHexData) {
     if (workIdx == 0 && baseWork()) {
         baseWork()->buildBlockImpl(BaseHeader_, BaseWitness_, blockHexData);
     } else {
-        auto *fw = fracWork(workIdx - 1);
+        auto *fw = fbWork(workIdx - 1);
         if (fw) {
             fw->buildBlockImpl(
-                FRACHeaders_[workIdx - 1],
-                FRACWitness_[workIdx - 1],
+                FBHeaders_[workIdx - 1],
+                FBWitness_[workIdx - 1],
                 blockHexData
             );
         }
@@ -390,10 +390,10 @@ CCheckStatus Stratum::MergedWork::checkConsensus(size_t workIdx) {
     if (workIdx == 0 && baseWork()) {
         return BTC::Stratum::Work::checkConsensusImpl(BaseHeader_, BaseConsensusCtx_);
     } else {
-        auto *fw = fracWork(workIdx - 1);
+        auto *fw = fbWork(workIdx - 1);
         if (fw) {
-            return FRAC::Stratum::FracWork::checkConsensusImpl(
-                       FRACHeaders_[workIdx - 1],
+            return FB::Stratum::FbWork::checkConsensusImpl(
+                       FBHeaders_[workIdx - 1],
                        BaseConsensusCtx_
                    );
         }
@@ -406,27 +406,27 @@ CCheckStatus Stratum::MergedWork::checkConsensus(size_t workIdx) {
 //    – no further definitions needed here in the cpp because they’re static inline.
 //
 
-} // namespace FRAC
+} // namespace FB
 
 //
-// ─── EXPLICIT Io<T> SPECIALIZATION FOR FRAC::Proto::BlockHeader ─────────────
+// ─── EXPLICIT Io<T> SPECIALIZATION FOR FB::Proto::BlockHeader ─────────────
 //
 namespace BTC {
 
 template<>
-inline void Io<FRAC::Proto::BlockHeader>::serialize(xmstream &s, const FRAC::Proto::BlockHeader &h)
+inline void Io<FB::Proto::BlockHeader>::serialize(xmstream &s, const FB::Proto::BlockHeader &h)
 {
     // 1) Serialize the six-field “pure” header exactly as BTC does:
-    Io<FRAC::Proto::PureBlockHeader>::serialize(s, h);
+    Io<FB::Proto::PureBlockHeader>::serialize(s, h);
 
-    // 2) Then serialize all the AuxPoW fields in FRAC’s BlockHeader:
-    Io<FRAC::Proto::Transaction>::serialize(s, h.ParentBlockCoinbaseTx);
+    // 2) Then serialize all the AuxPoW fields in FB’s BlockHeader:
+    Io<FB::Proto::Transaction>::serialize(s, h.ParentBlockCoinbaseTx);
     Io<uint256>::serialize(s, h.HashBlock);
     Io<xvector<uint256>>::serialize(s, h.MerkleBranch);
     Io<int>::serialize(s, h.Index);
     Io<xvector<uint256>>::serialize(s, h.ChainMerkleBranch);
     Io<int>::serialize(s, h.ChainIndex);
-    Io<FRAC::Proto::PureBlockHeader>::serialize(s, h.ParentBlock);
+    Io<FB::Proto::PureBlockHeader>::serialize(s, h.ParentBlock);
 }
 
 } // namespace BTC

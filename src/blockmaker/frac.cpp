@@ -9,21 +9,23 @@ namespace FRAC {
 
 //////////////////////////
 // 1) buildChainMap(...) – identical to DOGE’s implementation (adjusted for FRAC)
+// ─── FRAC::Stratum::buildChainMap ─────────────────────────────────────────────
 std::vector<int> Stratum::buildChainMap(std::vector<StratumSingleWork*> &secondary,
                                         uint32_t &nonce,
                                         unsigned &virtualHashesNum)
 {
-    // RESULT must be exactly one entry per secondary work
+    // RESULT must have one entry per secondary work
     std::vector<int> result(secondary.size());
 
-    // If only one secondary, pathSize starts at 0; otherwise pick minimum needed
+    // If there is only one secondary, pathSize starts at 0; otherwise compute the minimum:
     unsigned minPathSize = (secondary.size() > 1)
                            ? (31 - __builtin_clz((secondary.size() << 1) - 1))
                            : 0;
 
+    // Try pathSize from minPathSize up to 7 (i.e. up to 128 leaves max)
     for (unsigned pathSize = minPathSize; pathSize < 8; pathSize++) {
         virtualHashesNum = (1u << pathSize);
-        // A fresh chainMap of length = virtualHashesNum
+        // Create a fresh map of length virtualHashesNum, initialized to 0:
         std::vector<int> chainMap(virtualHashesNum, 0);
 
         bool foundCollisionFree = true;
@@ -31,10 +33,10 @@ std::vector<int> Stratum::buildChainMap(std::vector<StratumSingleWork*> &seconda
             foundCollisionFree = true;
             std::fill(chainMap.begin(), chainMap.end(), 0);
 
-            // Try to assign each secondary a distinct indexInMerkle
+            // Attempt to assign each secondary a distinct leaf index
             for (size_t i = 0; i < secondary.size(); i++) {
                 auto *work = static_cast<Stratum::FracWork*>(secondary[i]);
-                // Extract FRAC’s “chain ID” from high 16 bits of version
+                // Extract FRAC’s “chain ID” from the high 16 bits of nVersion:
                 uint32_t chainId = (work->Header.nVersion >> 16);
 
                 // Pseudorandom index in [0, virtualHashesNum)
@@ -42,7 +44,7 @@ std::vector<int> Stratum::buildChainMap(std::vector<StratumSingleWork*> &seconda
                 randv = randv * 1103515245 + 12345;
                 randv += chainId;
                 randv = randv * 1103515245 + 12345;
-                uint32_t idx = randv & (virtualHashesNum - 1);
+                uint32_t idx = randv & (virtualHashesNum - 1);  // same as % virtualHashesNum
 
                 if (chainMap[idx] == 0) {
                     chainMap[idx] = 1;
@@ -52,21 +54,21 @@ std::vector<int> Stratum::buildChainMap(std::vector<StratumSingleWork*> &seconda
                     break;
                 }
             }
+
             if (foundCollisionFree) {
-                // We found a nonce that places all secondaries into unique leaves
+                // We found a nonce that places every secondary into a unique leaf
                 break;
             }
         }
 
         if (foundCollisionFree) {
-            // SUCCESS: return a vector of length = secondary.size()
-            // (e.g. { 0 } if exactly one secondary)
+            // SUCCESS ➔ return exactly one entry per secondary (e.g. {0} if size==1)
             return result;
         }
-        // Otherwise, try the next pathSize (doubling virtualHashesNum)
+        // Otherwise, increase pathSize (and virtualHashesNum doubles) and try again
     }
 
-    // If no collision-free assignment was found up to pathSize=7, fail:
+    // If no collision-free assignment found up to pathSize=7, return empty
     return std::vector<int>();
 }
 
@@ -156,6 +158,7 @@ StratumSingleWork* Stratum::newSecondaryWork(int64_t stratumId,
 //////////////////////////
 // 4) MergedWork constructor  virtual overrides
 // ─── FRAC::Stratum::MergedWork::MergedWork ────────────────────────────────────
+// ─── FRAC::Stratum::MergedWork::MergedWork ────────────────────────────────────
 Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
                                 StratumSingleWork *first,
                                 std::vector<StratumSingleWork*> &second,
@@ -165,40 +168,39 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
                                 const CMiningConfig &miningCfg)
   : StratumMergedWork(stratumWorkId, first, second, miningCfg)
 {
-    // 1) Copy primary (BTC-like) fields:
-    BaseHeader_      = baseWork()->Header;
-    BaseMerklePath_  = baseWork()->MerklePath;
+    // 1) Copy the primary (BTC-like) fields from the “first” work:
+    BaseHeader_       = baseWork()->Header;
+    BaseMerklePath_   = baseWork()->MerklePath;
     BaseConsensusCtx_ = baseWork()->ConsensusCtx_;
 
-    // 2) Allocate exactly one slot per secondary:
+    // 2) Each secondary → one FRAC header slot:
     FRACHeaders_.resize(second.size());
     FRACLegacy_.resize(second.size());
     FRACWitness_.resize(second.size());
 
-    // 3) Allocate exactly virtualHashesNum slots for the mm-merkle
+    // 3) We need exactly virtualHashesNum leaves for mm‐merkle:
     FRACHeaderHashes_.resize(virtualHashesNum, uint256());
 
-    // 4) Copy chainMap into FRACWorkMap_ (mmChainId.size() == second.size()):
+    // 4) Copy the “chainMap” indices (length == second.size())
     FRACWorkMap_.assign(mmChainId.begin(), mmChainId.end());
 
-    // ===== Now build each FRAC sub-header =====
+    // 5) Build each FRAC sub‐header in order:
     for (size_t i = 0; i < FRACHeaders_.size(); i++) {
-        // Cast to FRAC::FracWork:
         auto *fw = static_cast<Stratum::FracWork*>(second[i]);
 
-        // 4.1) Copy the “bare” FRAC header from the template
+        // 5.1) Copy the template header:
         FRACHeaders_[i] = fw->Header;
 
-        // 4.2) Build a static FRAC coinbase (no extra-nonce) so we can compute merkle root
+        // 5.2) Build a static FRAC coinbase (no extra‐nonce) to calculate Merkle:
         CMiningConfig dummyExtra{};
         dummyExtra.FixedExtraNonceSize   = 0;
         dummyExtra.MutableExtraNonceSize = 0;
         fw->buildCoinbaseTx(nullptr, 0, dummyExtra, FRACLegacy_[i], FRACWitness_[i]);
 
-        // 4.3) Flip on the AuxPoW version bit:
+        // 5.3) Flip on the AuxPoW version bit:
         FRACHeaders_[i].nVersion |= FRAC::Proto::BlockHeader::VERSION_AUXPOW;
 
-        // 4.4) Compute FRAC merkleRoot from the coinbaseTx
+        // 5.4) Compute that FRAC header’s Merkle root from its coinbase:
         uint256 coinbaseHash;
         {
             CCtxSha256 sha;
@@ -208,7 +210,7 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
                         FRACLegacy_[i].Data.sizeOf());
             sha256Final(&sha, coinbaseHash.begin());
 
-            // If there was a witness, hash again:
+            // If there is a witness, hash it again
             sha256Init(&sha);
             sha256Update(&sha, coinbaseHash.begin(), coinbaseHash.size());
             sha256Final(&sha, coinbaseHash.begin());
@@ -220,17 +222,17 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
             0
         );
 
-        // 4.5) Place this FRAC header’s hash at the correct leaf in FRACHeaderHashes_
+        // 5.5) Place this sub‐header’s hash at the correct leaf:
         size_t leafIdx = static_cast<size_t>(FRACWorkMap_[i]);
         FRACHeaderHashes_[leafIdx] = FRACHeaders_[i].GetHash();
     }
 
-    // 5) Build the mm-chain merkle root (over all FRACHeaderHashes_)
+    // 6) Build the merged‐mining chain Merkle root:
     uint256 chainRoot = calculateMerkleRoot(FRACHeaderHashes_.data(),
                                             FRACHeaderHashes_.size());
     std::reverse(chainRoot.begin(), chainRoot.end());
 
-    // 6) Append “mm” header + chainRoot + virtualHashesNum + mmNonce to primary coinbase
+    // 7) Prepend “mm” magic + chainRoot + virtualHashesNum + mmNonce to coinbase:
     uint8_t buffer[1024];
     xmstream mmPayload(buffer, sizeof(buffer));
     mmPayload.reset();
@@ -240,12 +242,14 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
     mmPayload.write<uint32_t>(virtualHashesNum);
     mmPayload.write<uint32_t>(mmNonce);
 
-    // 7) Rebuild the primary coinbase with that “mmPayload” prefix:
-    baseWork()->buildCoinbaseTx(mmPayload.data(),
-                               mmPayload.sizeOf(),
-                               miningCfg,
-                               BaseLegacy_,
-                               BaseWitness_);
+    // 8) Finally, rebuild the primary (BTC) coinbase by prefixing that “mmPayload”:
+    baseWork()->buildCoinbaseTx(
+      mmPayload.data(),
+      mmPayload.sizeOf(),
+      miningCfg,
+      BaseLegacy_,
+      BaseWitness_
+    );
 }
 
 FRAC::Proto::BlockHashTy Stratum::MergedWork::shareHash() {

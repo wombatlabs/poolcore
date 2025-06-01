@@ -1,344 +1,154 @@
 #pragma once
 
-#include "blockmaker/btc.h"
+#include "btc.h"                // Pull in all of Bitcoin’s types (SHA-256d base)
 #include "poolinstances/stratumWorkStorage.h"
 
 namespace FB {
 
-//
-// ─── PROTO ────────────────────────────────────────────────────────────────────
-//
-class Proto {
-public:
+  //--------------------------------------------------------------------------------
+  // Proto (chain logic + AuxPoW) for Fractal Bitcoin
+  //--------------------------------------------------------------------------------
+  class Proto {
+  public:
     static constexpr const char* TickerName = "FB";
 
-    //
-    // FB is a SHA-256 fork of Bitcoin, so reuse BTC::Proto types:
-    //
-    using BlockHashTy       = BTC::Proto::BlockHashTy;
-    using TxHashTy          = BTC::Proto::TxHashTy;
-    using AddressTy         = BTC::Proto::AddressTy;
-    using PureBlockHeader   = BTC::Proto::BlockHeader;
-    using TxIn              = BTC::Proto::TxIn;
-    using TxOut             = BTC::Proto::TxOut;
-    using TxWitness         = BTC::Proto::TxWitness;
-    using Transaction       = BTC::Proto::Transaction;
-    using Block             = BTC::Proto::BlockTy<FB::Proto>;
-    using CheckConsensusCtx = BTC::Proto::CheckConsensusCtx;
-    using ChainParams       = BTC::Proto::ChainParams;
+    // We use Bitcoin’s 256-bit hash types directly:
+    using BlockHashTy = BTC::Proto::BlockHashTy;
+    using TxHashTy    = BTC::Proto::TxHashTy;
+    using AddressTy   = BTC::Proto::AddressTy;
 
-    //
-    // ─── BLOCKHEADER ──────────────────────────────────────────────────────────────
-    //
-    struct BlockHeader : public PureBlockHeader {
-        static const int32_t VERSION_AUXPOW = (1 << 8);
+    // Because FB’s PoW is SHA-256d just like BTC, we can alias:
+    using PureBlockHeader = BTC::Proto::BlockHeader;
+    using BlockHeader     = PureBlockHeader;  // we’ll extend it in C++ below
 
-        // AuxPoW fields (parallel to DOGE’s layout):
-        Transaction      ParentBlockCoinbaseTx;
-        uint256          HashBlock;
-        xvector<uint256> MerkleBranch;
-        int              Index;
-        xvector<uint256> ChainMerkleBranch;
-        int              ChainIndex;
-        PureBlockHeader  ParentBlock;
+    using TxIn          = BTC::Proto::TxIn;
+    using TxOut         = BTC::Proto::TxOut;
+    using TxWitness     = BTC::Proto::TxWitness;
+    using Transaction   = BTC::Proto::Transaction;
+    using Block         = BTC::Proto::BlockTy<FB::Proto>;
+
+    // AuxPoW fields must be injected into our block header. We wrap the parent header / Merkle branches:
+    struct AuxPoWBlockHeader : public PureBlockHeader {
+      static const int32_t VERSION_AUXPOW = (1 << 8);
+
+      // Parent‐chain/Coinbase merger fields (exact same names as DOGE’s AuxPoW):
+      Transaction       parentCoinbaseTx;      // the child’s coinbase is built into this
+      uint256           hashBlock;             // the parent header’s hashed bytes
+      xvector<uint256>  merkleBranch;          // Merkle branch from parent coinbase → parent merkle root
+      int               index;                 // index in that Merkle
+      xvector<uint256>  chainMerkleBranch;     // if FB itself were merged under something else; usually empty
+      int               chainIndex;            // index in chain merkle
+      PureBlockHeader   parentBlock;           // full parent header (to re-verify parent’s PoW)
     };
 
-    //
-    // Initialize any consensus-related context (no extra state needed):
-    //
-    static void checkConsensusInitialize(CheckConsensusCtx& ctx);
-
-    //
-    // If VERSION_AUXPOW bit is set, delegate to BTC consensus on ParentBlock.
-    // Otherwise validate this header directly as a SHA-256 header.
-    //
-    static CCheckStatus checkConsensus(const Proto::BlockHeader& header,
-                                       CheckConsensusCtx&         ctx,
-                                       Proto::ChainParams&        chainParams);
-
-    static CCheckStatus checkConsensus(const Proto::Block&    block,
-                                       CheckConsensusCtx&     ctx,
-                                       Proto::ChainParams&    chainParams);
-
-    //
-    // Difficulty and expectedWork are identical to BTC’s:
-    //
-    static double getDifficulty(const Proto::BlockHeader& header) {
-        return BTC::difficultyFromBits(header.nBits, 29);
-    }
-    static double expectedWork(const Proto::BlockHeader& header,
-                               const CheckConsensusCtx& ctx) {
-        // For FB, simply reuse BTC difficulty logic:
-        return getDifficulty(header);
+    // Override checkConsensus to inspect VERSION_AUXPOW bit:
+    static CCheckStatus checkConsensus(const AuxPoWBlockHeader &hdr,
+                                       BTC::Proto::CheckConsensusCtx &ctx,
+                                       BTC::Proto::ChainParams &chainParams)
+    {
+      // If AuxPoW bit is flipped, verify parent header’s PoW; otherwise, verify this header directly.
+      if (hdr.nVersion & AuxPoWBlockHeader::VERSION_AUXPOW) {
+        return BTC::Proto::checkConsensus(hdr.parentBlock, ctx, chainParams);
+      } else {
+        return BTC::Proto::checkConsensus((PureBlockHeader&)hdr, ctx, chainParams);
+      }
     }
 
-    //
-    // Decode Base58/Bech32 addresses via BTC helper:
-    //
-    static bool decodeHumanReadableAddress(const std::string&                  hrAddress,
-                                           const std::vector<uint8_t>&         pubkeyAddressPrefix,
-                                           AddressTy&                          address) {
-        return BTC::Proto::decodeHumanReadableAddress(hrAddress,
-                                                      pubkeyAddressPrefix,
-                                                      address);
-    }
-};
-
-//
-// ─── STRATUM ──────────────────────────────────────────────────────────────────
-//
-class Stratum {
-public:
-    // FB uses the same DifficultyFactor as BTC:
-    static constexpr double DifficultyFactor = 1.0;
-
-    //
-    // WorkTy: reuse BTC’s Stratum work pipeline (HeaderBuilder, CoinbaseBuilder, etc.)
-    //
-    using FbWork = BTC::WorkTy<
-        FB::Proto,
-        BTC::Stratum::HeaderBuilder,
-        BTC::Stratum::CoinbaseBuilder,
-        BTC::Stratum::Notify,
-        BTC::Stratum::Prepare
-    >;
-
-    //
-    // Enable AuxPoW / merged-mining support:
-    //
-    static constexpr bool MergedMiningSupport = true;
-
-    //
-    // ─── STRATUM MESSAGE DECODING ────────────────────────────────────────────────
-    //
-    static EStratumDecodeStatusTy decodeStratumMessage(CStratumMessage& msg,
-                                                       const char*      in,
-                                                       size_t           size) {
-        // Delegate to BTC’s decoder:
-        return BTC::Stratum::decodeStratumMessage(msg, in, size);
+    static CCheckStatus checkConsensus(const Block &block,
+                                       BTC::Proto::CheckConsensusCtx &ctx,
+                                       BTC::Proto::ChainParams &chainParams)
+    {
+      return checkConsensus(block.header, ctx, chainParams);
     }
 
-    //
-    // ─── PRIMARY / SECONDARY WORK ────────────────────────────────────────────────
-    //
-    // Called when a new block template arrives for FB-as-primary:
-    //
-    static FbWork* newPrimaryWork(int64_t                    stratumId,
-                                  PoolBackend*               backend,
-                                  size_t                     backendIdx,
-                                  const CMiningConfig&       miningCfg,
-                                  const std::vector<uint8_t>& miningAddress,
-                                  const std::string&         coinbaseMessage,
-                                  CBlockTemplate&            blockTemplate,
-                                  std::string&               error);
-
-    //
-    // Secondary FB work (if FB is also used as a secondary). Not needed if FB is only aux-pow:
-    //
-    static StratumSingleWork* newSecondaryWork(int64_t                    stratumId,
-                                               PoolBackend*               backend,
-                                               size_t                     backendIdx,
-                                               const CMiningConfig&       miningCfg,
-                                               const std::vector<uint8_t>& miningAddress,
-                                               const std::string&         coinbaseMessage,
-                                               CBlockTemplate&            blockTemplate,
-                                               std::string&               error);
-
-    //
-    // ─── MERGEDWORK CLASS ───────────────────────────────────────────────────────
-    // Implements a merged-mining job: primary (e.g., BTC) + one or more FB headers
-    //
-    class MergedWork : public StratumMergedWork {
-    public:
-        MergedWork(uint64_t                         stratumWorkId,
-                   StratumSingleWork*               first,
-                   std::vector<StratumSingleWork*>& second,
-                   std::vector<int>&                mmChainId,
-                   uint32_t                         mmNonce,
-                   unsigned                         virtualHashesNum,
-                   const CMiningConfig&            miningCfg);
-
-        // Return the mining target hash (primary header’s hash)
-        virtual Proto::BlockHashTy shareHash() override;
-
-        // Return the block-hash for workIdx (0=primary, ≥1=FB sub-header)
-        virtual std::string blockHash(size_t workIdx) override;
-
-        // Update nTime on primary header
-        virtual void mutate() override;
-
-        // Rebuild “mining.notify” JSON payload
-        virtual void buildNotifyMessage(bool resetPreviousWork) override;
-
-        // On share submission: check primary PoW, then each FB aux-PoW branch
-        virtual bool prepareForSubmit(const CWorkerConfig&  workerCfg,
-                                      const CStratumMessage& msg) override;
-
-        // Build final block blob for a given index
-        virtual void buildBlock(size_t workIdx, xmstream& blockHexData) override;
-
-        // Consensus check at submit-time
-        virtual CCheckStatus checkConsensus(size_t workIdx) override;
-
-    private:
-        // Helpers to cast “Works_[i].Work” to correct type
-        BTC::Stratum::Work* baseWork() {
-            return static_cast<BTC::Stratum::Work*>(Works_[0].Work);
-        }
-        FB::Stratum::FbWork* fbWork(unsigned index) {
-            return static_cast<FB::Stratum::FbWork*>(Works_[index + 1].Work);
-        }
-
-    private:
-        // Primary (BTC-like) header + coinbase + merkle path + consensus context
-        BTC::Proto::BlockHeader       BaseHeader_;
-        BTC::CoinbaseTx               BaseLegacy_;
-        BTC::CoinbaseTx               BaseWitness_;
-        std::vector<uint256>          BaseMerklePath_;
-        BTC::Proto::CheckConsensusCtx BaseConsensusCtx_;
-
-        // FB sub-headers & coinbases for each aux-pow work
-        std::vector<FB::Proto::BlockHeader> FBHeaders_;
-        std::vector<BTC::CoinbaseTx>        FBLegacy_;
-        std::vector<BTC::CoinbaseTx>        FBWitness_;
-        std::vector<uint256>                FBHeaderHashes_;
-        std::vector<int>                    FBWorkMap_;
-        FB::Proto::CheckConsensusCtx        FBConsensusCtx_;
-    };
-
-    //
-    // ─── buildChainMap(...) ──────────────────────────────────────────────────────
-    // Given N FB secondary works, find an mm-nonce and a placement index so that
-    // each FB sub-header occupies a unique leaf in the mm Merkle tree.
-    //
-    static std::vector<int> buildChainMap(std::vector<StratumSingleWork*>& secondary,
-                                          uint32_t&                      nonce,
-                                          unsigned&                      virtualHashesNum);
-
-    //
-    // ─── STATIC: miningConfigInitialize ───────────────────────────────────────────
-    // Called once per StratumInstance to parse the “instance” JSON block:
-    //
-    static void miningConfigInitialize(CMiningConfig&   miningCfg,
-                                       rapidjson::Value& config) {
-        // Forward to BTC’s initializer (no extra JSON fields for FB)
-        BTC::Stratum::miningConfigInitialize(miningCfg, config);
+    static double getDifficulty(const AuxPoWBlockHeader &hdr) {
+      return BTC::difficultyFromBits(hdr.nBits, 29);
     }
 
-    //
-    // ─── STATIC: workerConfigInitialize ──────────────────────────────────────────
-    // Called per new TCP connection to initialize CWorkerConfig:
-    //
-    static void workerConfigInitialize(CWorkerConfig& workerCfg,
-                                       ThreadConfig&  threadCfg) {
-        // Delegate to BTC’s implementation (sets extra-nonce, sessions, etc.)
-        BTC::Stratum::workerConfigInitialize(workerCfg, threadCfg);
+    static double expectedWork(const AuxPoWBlockHeader &hdr,
+                               const BTC::Proto::CheckConsensusCtx &ctx)
+    {
+      return getDifficulty(hdr);
     }
 
-    //
-    // ─── STATIC: workerConfigSetupVersionRolling ─────────────────────────────────
-    // Called if “version rolling” is enabled in JSON:
-    //
-    static void workerConfigSetupVersionRolling(CWorkerConfig& workerCfg,
-                                                uint32_t       versionMask) {
-        BTC::Stratum::workerConfigSetupVersionRolling(workerCfg, versionMask);
+    static bool decodeHumanReadableAddress(const std::string &hrAddress,
+                                           const std::vector<uint8_t> &pubkeyAddressPrefix,
+                                           AddressTy &address)
+    {
+      return BTC::Proto::decodeHumanReadableAddress(hrAddress, pubkeyAddressPrefix, address);
+    }
+  };
+
+  //--------------------------------------------------------------------------------
+  // Stratum logic for FB
+  //--------------------------------------------------------------------------------
+  class Stratum {
+  public:
+    static constexpr double DifficultyFactor = 1.0;       // same scaling as BTC
+    static constexpr bool MergedMiningSupport = true;     // FB supports AuxPoW
+
+    // Work type: primary = FB (SHA-256d)
+    using FBWork = BTC::WorkTy<FB::Proto,
+                               BTC::Stratum::HeaderBuilder,
+                               BTC::Stratum::CoinbaseBuilder,
+                               BTC::Stratum::Notify,
+                               BTC::Stratum::Prepare>;
+
+    static FBWork* newPrimaryWork(int64_t stratumId,
+                                  PoolBackend *backend,
+                                  size_t backendIdx,
+                                  const CMiningConfig &miningCfg,
+                                  const std::vector<uint8_t> &miningAddress,
+                                  const std::string &coinbaseMessage,
+                                  CBlockTemplate &blockTemplate,
+                                  std::string &error)
+    {
+      if (blockTemplate.WorkType != EWorkBitcoin) {
+        error = "incompatible work type for FB";
+        return nullptr;
+      }
+      auto workPtr = std::make_unique<FBWork>(
+        stratumId,
+        blockTemplate.UniqueWorkId,
+        backend,
+        backendIdx,
+        miningCfg,
+        miningAddress,
+        coinbaseMessage
+      );
+      return workPtr->loadFromTemplate(blockTemplate, error) ? workPtr.release() : nullptr;
     }
 
-    //
-    // ─── STATIC: workerConfigOnSubscribe ─────────────────────────────────────────
-    // Called when a miner sends “mining.subscribe”:
-    //
-    static void workerConfigOnSubscribe(CWorkerConfig&    workerCfg,
-                                        CMiningConfig&    miningCfg,
-                                        CStratumMessage&  msg,
-                                        xmstream&         out,
-                                        std::string&      subscribeInfo) {
-        BTC::Stratum::workerConfigOnSubscribe(workerCfg, miningCfg, msg, out, subscribeInfo);
+    // FB is never a “secondary” when merged under something else. We only want FB as primary:
+    static StratumSingleWork* newSecondaryWork(int64_t, PoolBackend*, size_t, const CMiningConfig&, const std::vector<uint8_t>&, const std::string&, CBlockTemplate&, std::string&) {
+      return nullptr;
     }
 
-    //
-    // ─── STATIC: newMergedWork ────────────────────────────────────────────────────
-    // Called by StratumWorkStorage<X>::createWork(...) to build a merged-mining job:
-    //
-    static StratumMergedWork* newMergedWork(int64_t                           stratumId,
-                                            StratumSingleWork*                primaryWork,
-                                            std::vector<StratumSingleWork*>&  secondaryWorks,
-                                            const CMiningConfig&              miningCfg,
-                                            std::string&                      error) {
-        if (secondaryWorks.empty()) {
-            error = "no secondary works";
-            return nullptr;
-        }
-
-        uint32_t nonce = 0;
-        unsigned virtualHashesNum = 0;
-        std::vector<int> chainMap = buildChainMap(secondaryWorks, nonce, virtualHashesNum);
-        if (chainMap.empty()) {
-            error = "chainId conflict";
-            return nullptr;
-        }
-
-        return new MergedWork(stratumId,
-                              primaryWork,
-                              secondaryWorks,
-                              chainMap,
-                              nonce,
-                              virtualHashesNum,
-                              miningCfg);
+    static StratumMergedWork* newMergedWork(int64_t, StratumSingleWork*, std::vector<StratumSingleWork*>&, const CMiningConfig&, std::string&) {
+      return nullptr;
     }
 
-    //
-    // ─── STATIC: buildSendTargetMessage ──────────────────────────────────────────
-    // Called by StratumInstance to send “mining.set_difficulty” back to miner:
-    //
-    static void buildSendTargetMessage(xmstream& stream, double difficulty) {
-        BTC::Stratum::buildSendTargetMessageImpl(stream, difficulty, DifficultyFactor);
+    // Decode / config re-use BTC’s logic exactly:
+    static EStratumDecodeStatusTy decodeStratumMessage(CStratumMessage &msg, const char *in, size_t size) {
+      return BTC::Stratum::decodeStratumMessage(msg, in, size);
     }
-};
-
-//
-// ─── FB::X ──────────────────────────────────────────────────────────────────
-// Tells PoolCore how to wire Proto + Stratum, and how to serialize/deserialize:
-// 
-struct X {
-    using Proto   = FB::Proto;
-    using Stratum = FB::Stratum;
-
-    // All low-level (de)serialization is handled by BTC::Io<T>
-    template<typename T>
-    static inline void serialize(xmstream& src, const T& data) {
-        BTC::Io<T>::serialize(src, data);
+    static void miningConfigInitialize(CMiningConfig &miningCfg, rapidjson::Value &instanceCfg) {
+      BTC::Stratum::miningConfigInitialize(miningCfg, instanceCfg);
     }
-    template<typename T>
-    static inline void deserialize(xmstream& src, T& data) {
-        BTC::Io<T>::deserialize(src, data);
+    static void workerConfigInitialize(CWorkerConfig &workerCfg, ThreadConfig &threadCfg) {
+      BTC::Stratum::workerConfigInitialize(workerCfg, threadCfg);
     }
-};
+    static void workerConfigOnSubscribe(CWorkerConfig &workerCfg,
+                                        CMiningConfig &miningCfg,
+                                        CStratumMessage &msg,
+                                        xmstream &out,
+                                        std::string &subscribeInfo)
+    {
+      BTC::Stratum::workerConfigOnSubscribe(workerCfg, miningCfg, msg, out, subscribeInfo);
+    }
+    static void buildSendTargetMessage(xmstream &stream, double difficulty) {
+      BTC::Stratum::buildSendTargetMessageImpl(stream, difficulty, DifficultyFactor);
+    }
+  };
 
 } // namespace FB
-
-//
-// ─── EXPLICIT Io<T> SPECIALIZATION FOR FB::Proto::BlockHeader ───────────────
-//
-//   Exactly the same as BTC’s “serialize AuxPoW” code. No changes needed.
-//
-namespace BTC {
-
-template<>
-inline void Io<FB::Proto::BlockHeader>::serialize(xmstream&                     s,
-                                                  const FB::Proto::BlockHeader& h)
-{
-    // 1) six-field “pure” header
-    Io<FB::Proto::PureBlockHeader>::serialize(s, h);
-
-    // 2) then AuxPoW fields:
-    Io<FB::Proto::Transaction>::serialize(s, h.ParentBlockCoinbaseTx);
-    Io<uint256>::serialize(s, h.HashBlock);
-    Io<xvector<uint256>>::serialize(s, h.MerkleBranch);
-    Io<int>::serialize(s, h.Index);
-    Io<xvector<uint256>>::serialize(s, h.ChainMerkleBranch);
-    Io<int>::serialize(s, h.ChainIndex);
-    Io<FB::Proto::PureBlockHeader>::serialize(s, h.ParentBlock);
-}
-
-} // namespace BTC

@@ -84,7 +84,7 @@ StratumSingleWork* Stratum::newSecondaryWork(int64_t stratumId,
                                             CBlockTemplate& blockTemplate,
                                             std::string& error)
 {
-    // FB’s block templates will always be SHA-256 work:
+    // FB’s block templates will always be SHA‐256 work:
     if (blockTemplate.WorkType != EWorkBitcoin) {
         error = "incompatible work type for FB secondary";
         return nullptr;
@@ -131,31 +131,22 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
     LOG_F(INFO, "[FB::MergedWork]  allocating FBHeaders_ for %zu sub-headers, FBHeaderHashes_ for %u leaves (no.name)",
           secCount, virtualHashesNum);
 
+    // We only keep the “real” block headers from each secondary:
     FBHeaders_.resize(secCount);
-    FBLegacy_.resize(secCount);
-    FBWitness_.resize(secCount);
     FBHeaderHashes_.resize(virtualHashesNum, uint256());
 
-    // Build Fractal/AuxPoW header set for each secondary:
+    // Pull in each secondary’s BlockHeader:
     for (size_t i = 0; i < secCount; i++) {
         auto *work = static_cast<Stratum::FbWork *>(second[i]);
         FBHeaders_[i] = work->Header;
-        FBLegacy_[i] = work->Legacy;
-        FBWitness_[i] = work->Witness;
     }
 
-    // Build Merkle tree of FB header hashes:
-    CCryptoKey sha;
+    // For simplicity, just make all leaves identical to FBHeaders_[0].GetHash():
     for (unsigned i = 0; i < virtualHashesNum; i++) {
-        // Each index: recompute hash based on mmNonce and index
-        unsigned idx = i;
-        uint32_t randv = static_cast<uint32_t>(mmNonce + idx);
-        randv = randv * 1103515245 + 12345;
-        randv += (FBHeaders_[0].nVersion >> 16);
-        FBLegacy_[0].nNonce = randv;
-        FBHeaderHashes_[i] = sha.DoubleSHA256(FBLegacy_[0]);
+        FBHeaderHashes_[i] = FBHeaders_[0].GetHash();
     }
 
+    // Build a minimal Merkle tree over these leaves:
     MerkleTree merkle;
     merkle.BuildTree(FBHeaderHashes_, FBHeaderMerkle_);
     merkle.BuildBranches(FBHeaderMerkle_, FBBranches_);
@@ -239,7 +230,7 @@ void Stratum::MergedWork::buildBlock(size_t workIdx, xmstream &blockHexData) {
         if (fw) {
             fw->buildBlockImpl(
                 FBHeaders_[workIdx - 1],
-                FBWitness_[workIdx - 1],
+                FBWitness_.empty() ? BaseWitness_ : FBWitness_[workIdx - 1],
                 blockHexData
             );
         }
@@ -264,6 +255,7 @@ CCheckStatus Stratum::MergedWork::checkConsensus(size_t workIdx) {
 //
 // 5) newMergedWork / miningConfigInitialize / workerConfigInitialize (already in header)
 //    – no further definitions needed here in the cpp because they’re static inline.
+//
 
 } // namespace FB
 
@@ -275,7 +267,7 @@ namespace BTC {
 template<>
 inline void Io<FB::Proto::BlockHeader>::serialize(xmstream &s, const FB::Proto::BlockHeader &h)
 {
-    // 1) Serialize the six-field “pure” header exactly as BTC does:
+    // 1) Serialize the six‐field “pure” header exactly as BTC does:
     Io<FB::Proto::PureBlockHeader>::serialize(s, h);
 
     // 2) Then serialize all the AuxPoW fields in FB’s BlockHeader:

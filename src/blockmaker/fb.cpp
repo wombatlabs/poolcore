@@ -10,96 +10,19 @@ namespace FB {
 
 //////////////////////////
 // ─── FB::Stratum::buildChainMap ─────────────────────────────────────────────
-std::vector<int> Stratum::buildChainMap(std::vector<StratumSingleWork*> &secondary,
-                                        uint32_t &nonce,
-                                        unsigned &virtualHashesNum)
+std::vector<int>
+Stratum::buildChainMap(std::vector<StratumSingleWork *> &secondary,
+                       uint32_t &nonce,
+                       unsigned &virtualHashesNum)
 {
-    LOG_F(INFO, "[FB::buildChainMap] saw %zu secondaries  (no.name)", secondary.size());
-    size_t secCount = secondary.size();
+    // Force exactly one "virtual hash" slot per secondary (slot 0)
+    nonce = 0;
+    virtualHashesNum = 1;
 
-    // If there are zero secondaries → nothing to merge, return empty.
-    if (secCount == 0) {
-        return std::vector<int>();
-    }
-
-    // Cap maximum allowed secondaries to 128.  Anything larger is not supported.
-    if (secCount > 128) {
-        return std::vector<int>();
-    }
-
-    // Prepare the result array, one slot per secondary
-    std::vector<int> result(secCount, -1);
-
-    // Decide the starting pathSize:
-    //   if secCount == 1 → minPathSize = 0
-    //   otherwise → compute smallest pathSize such that (2^pathSize) ≥ secCount
-    unsigned minPathSize = (secCount > 1)
-                           ? (31 - __builtin_clz(static_cast<unsigned>((secCount << 1) - 1)))
-                           : 0;
-    
-    LOG_F(INFO, "[FB::buildChainMap]  minPathSize=%u (no.name)", minPathSize);
-
-    // Try pathSize = minPathSize .. 7  (i.e. 2^pathSize ∈ {1,2,4,8,…,128})
-    for (unsigned pathSize = minPathSize; pathSize < 8; pathSize++) {
-        // Number of “virtual leaves” in this Merkle layer
-        virtualHashesNum = (1u << pathSize);
-
-        LOG_F(INFO, "[FB::buildChainMap]  with pathSize=%u, virtualHashesNum=%u (no.name)",
-              pathSize, virtualHashesNum);
-
-        // If somehow 2^pathSize exceeds 128, bail out
-        if (virtualHashesNum > 128) {
-            return std::vector<int>();
-        }
-
-        // A fresh map of size = virtualHashesNum, all initialized to 0
-        std::vector<int> chainMap(virtualHashesNum, 0);
-
-        bool foundCollisionFree = true;
-
-        // Try every possible nonce in [0..virtualHashesNum−1]
-        for (nonce = 0; nonce < virtualHashesNum; nonce++) {
-            foundCollisionFree = true;
-            std::fill(chainMap.begin(), chainMap.end(), 0);
-
-            for (size_t i = 0; i < secCount; i++) {
-                auto *work = static_cast<Stratum::FbWork*>(secondary[i]);
-                // FB chain‐ID is in the top 16 bits of the version:
-                uint32_t chainId = (work->Header.nVersion >> 16);
-
-                // Build a pseudorandom index in [0..virtualHashesNum−1]:
-                uint32_t randv = nonce;
-                randv = randv * 1103515245 + 12345;
-                randv += chainId;
-                randv = randv * 1103515245 + 12345;
-                uint32_t idx = randv & (virtualHashesNum - 1);  // same as % virtualHashesNum
-
-                if (chainMap[idx] == 0) {
-                    chainMap[idx] = 1;
-                    result[i] = static_cast<int>(idx);
-                }
-                else {
-                    // collision at leaf “idx” → try next nonce
-                    foundCollisionFree = false;
-                    break;
-                }
-            }
-
-            if (foundCollisionFree) {
-                // We successfully placed all secondaries into unique leaves
-                break;
-            }
-        }
-
-        if (foundCollisionFree) {
-            // Return a length‐secCount vector, e.g. {0} if secCount==1
-            return result;
-        }
-        // Otherwise increase pathSize → (2^pathSize doubles) and try again up to pathSize=7
-    }
-
-    // No collision‐free assignment found up to pathSize=7 (i.e. 128 leaves)
-    return std::vector<int>();
+    std::vector<int> result;
+    result.resize(secondary.size());
+    std::fill(result.begin(), result.end(), 0);
+    return result;
 }
 
 //////////////////////////
@@ -190,129 +113,54 @@ StratumSingleWork* Stratum::newSecondaryWork(int64_t stratumId,
 // ─── FB::Stratum::MergedWork::MergedWork ────────────────────────────────────
 // ─── FB::Stratum::MergedWork::MergedWork ────────────────────────────────────
 Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
-                                StratumSingleWork *first,
-                                std::vector<StratumSingleWork*> &second,
-                                std::vector<int> &mmChainId,
-                                uint32_t mmNonce,
+                                StratumSingleWork *primaryWork,
+                                const std::vector<StratumSingleWork *> &second,
+                                const std::vector<int> &chainMap,
                                 unsigned virtualHashesNum,
+                                unsigned long mmNonce,
                                 const CMiningConfig &miningCfg)
-  : StratumMergedWork(stratumWorkId, first, second, miningCfg)
+    : StratumSingleWork(stratumWorkId, primaryWork->ServerJobId_)
 {
     size_t secCount = second.size();
-
     LOG_F(INFO, "[FB::MergedWork] starting: secCount=%zu, virtualHashesNum=%u (no.name)",
           secCount, virtualHashesNum);
 
-    // If there are no secondaries, do nothing (invalid merged‐work).
-    if (secCount == 0) {
-        return;
-    }
-
-    // Cap secondaries at 128 (2^7). Anything beyond is unsupported.
-    if (secCount > 128) {
+    if (secCount == 0 || virtualHashesNum == 0 || secCount > 128) {
         return;
     }
 
     LOG_F(INFO, "[FB::MergedWork]  allocating FBHeaders_ for %zu sub-headers, FBHeaderHashes_ for %u leaves (no.name)",
           secCount, virtualHashesNum);
 
-    // 1) Copy “primary” (BTC-like) fields from the first StratumSingleWork:
-    BaseHeader_       = baseWork()->Header;
-    BaseMerklePath_   = baseWork()->MerklePath;
-    BaseConsensusCtx_ = baseWork()->ConsensusCtx_;
-
-    // 2) Allocate exactly secCount slots for each FB sub‐header and its coinbases:
     FBHeaders_.resize(secCount);
     FBLegacy_.resize(secCount);
     FBWitness_.resize(secCount);
-
-    // 3) Ensure virtualHashesNum ∈ [1..128]:
-    if (virtualHashesNum == 0 || virtualHashesNum > 128) {
-        return;
-    }
-
-    // Allocate exactly virtualHashesNum slots for FBHeaderHashes_ (filled later)
     FBHeaderHashes_.resize(virtualHashesNum, uint256());
 
-    // 4) mmChainId must be exactly secCount long (one entry per secondary)
-    if (mmChainId.size() != secCount) {
-        return;
-    }
-    FBWorkMap_.assign(mmChainId.begin(), mmChainId.end());
-
-    // 5) Now build each FB sub‐header in order:
+    // Build Fractal/AuxPoW header set for each secondary:
     for (size_t i = 0; i < secCount; i++) {
-        auto *fw = static_cast<Stratum::FbWork*>(second[i]);
-
-        // 5.1) Copy that secondary’s “bare” FB header:
-        FBHeaders_[i] = fw->Header;
-
-        // 5.2) Build a “static” FB coinbase (no extra‐nonce) so we can hash Merkle:
-        CMiningConfig dummyExtra{};
-        dummyExtra.FixedExtraNonceSize   = 0;
-        dummyExtra.MutableExtraNonceSize = 0;
-        fw->buildCoinbaseTx(nullptr, 0, dummyExtra,
-                            FBLegacy_[i], FBWitness_[i]);
-
-        // 5.3) Flip on the AuxPoW version bit in that sub‐header:
-        FBHeaders_[i].nVersion |= FB::Proto::BlockHeader::VERSION_AUXPOW;
-
-        // 5.4) Compute that sub‐header’s Merkle root from its coinbase:
-        uint256 coinbaseHash;
-        {
-            CCtxSha256 sha;
-            sha256Init(&sha);
-            sha256Update(&sha,
-                        FBLegacy_[i].Data.data(),
-                        FBLegacy_[i].Data.sizeOf());
-            sha256Final(&sha, coinbaseHash.begin());
-
-            sha256Init(&sha);
-            sha256Update(&sha, coinbaseHash.begin(), coinbaseHash.size());
-            sha256Final(&sha, coinbaseHash.begin());
-        }
-        FBHeaders_[i].hashMerkleRoot = calculateMerkleRootWithPath(
-            coinbaseHash,
-            fw->MerklePath.data(),
-            fw->MerklePath.size(),
-            0
-        );
-
-        // 5.5) Place that sub‐header’s hash into the correct “leaf” index:
-        size_t leafIdx = static_cast<size_t>(FBWorkMap_[i]);
-        if (leafIdx < FBHeaderHashes_.size()) {
-            FBHeaderHashes_[leafIdx] = FBHeaders_[i].GetHash();
-        } else {
-            // If out of bounds, abort the constructor (invalid).
-            return;
-        }
+        auto *work = static_cast<Stratum::FBWork *>(second[i]);
+        FBHeaders_[i] = work->Header;
+        FBLegacy_[i] = work->Legacy;
+        FBWitness_[i] = work->Witness;
     }
 
-    // 6) Build the merged‐mining chain Merkle root over FBHeaderHashes_:
-    uint256 chainRoot = calculateMerkleRoot(
-        FBHeaderHashes_.data(),
-        FBHeaderHashes_.size()
-    );
-    std::reverse(chainRoot.begin(), chainRoot.end());
+    // Build Merkle tree of FB header hashes:
+    CCryptoKey sha;
+    for (unsigned i = 0; i < virtualHashesNum; i++) {
+        // Each index: recompute hash based on mmNonce and index
+        unsigned idx = i;
+        uint32_t randv = static_cast<uint32_t>(mmNonce + idx);
+        randv = randv * 1103515245 + 12345;
+        randv += (FBHeaders_[0].nVersion >> 16);
+        FBLegacy_[0].nNonce = randv;
+        FBHeaderHashes_[i] = sha.DoubleSHA256(FBLegacy_[0]);
+    }
 
-    // 7) Prepend “mm” magic + chainRoot + virtualHashesNum + mmNonce to the coinbase prefix:
-    uint8_t buffer[1024];
-    xmstream mmPayload(buffer, sizeof(buffer));
-    mmPayload.reset();
-    static const unsigned char pchMergedMiningHeader[] = { 0xFA, 0xBE, 'm', 'm' };
-    mmPayload.write(pchMergedMiningHeader, sizeof(pchMergedMiningHeader));
-    mmPayload.write(chainRoot.begin(), chainRoot.size());
-    mmPayload.write<uint32_t>(virtualHashesNum);
-    mmPayload.write<uint32_t>(mmNonce);
-
-    // 8) Finally, rebuild the primary (BTC) coinbase with that mmPayload prefix:
-    baseWork()->buildCoinbaseTx(
-      mmPayload.data(),
-      mmPayload.sizeOf(),
-      miningCfg,
-      BaseLegacy_,
-      BaseWitness_
-    );
+    MerkleTree merkle;
+    merkle.BuildTree(FBHeaderHashes_, FBHeaderMerkle_);
+    merkle.BuildBranches(FBHeaderMerkle_, FBBranches_);
+    merkle.BuildBranches(FBHeaderHashes_, FBProofs_);
 }
 
 FB::Proto::BlockHashTy Stratum::MergedWork::shareHash() {

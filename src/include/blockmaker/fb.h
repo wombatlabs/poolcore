@@ -146,6 +146,9 @@ namespace FB {
     static void workerConfigInitialize(CWorkerConfig &workerCfg, ThreadConfig &threadCfg) {
       BTC::Stratum::workerConfigInitialize(workerCfg, threadCfg);
     }
+    static void workerConfigSetupVersionRolling(CWorkerConfig &workerCfg, uint32_t versionMask) {
+      BTC::Stratum::workerConfigSetupVersionRolling(workerCfg, versionMask);
+    }
     static void workerConfigOnSubscribe(CWorkerConfig &workerCfg,
                                         CMiningConfig &miningCfg,
                                         CStratumMessage &msg,

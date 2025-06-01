@@ -337,10 +337,10 @@ namespace Stratum {
 
 template<>
 inline std::string WorkTy<FB::Proto,
-                          HeaderBuilder,
-                          CoinbaseBuilder,
-                          Notify,
-                          Prepare>::getCoinName() const
+                          BTC::Stratum::HeaderBuilder,
+                          BTC::Stratum::CoinbaseBuilder,
+                          BTC::Stratum::Notify,
+                          BTC::Stratum::Prepare>::getCoinName() const
 {
     return "FB";
 }

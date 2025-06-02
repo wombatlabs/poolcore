@@ -6,6 +6,26 @@
 
 namespace FB {
 
+// ───────────────────────────────────────────────────────────────────────────────
+// Meta‐struct “X” so that Fabric can do “StratumInstance<FB::X>” exactly like BTC.
+//───────────────────────────────────────────────────────────────────────────────
+struct X {
+    using Proto   = FB::Proto;
+    using Stratum = FB::Stratum;
+
+    template<typename T>
+    static inline void serialize(xmstream &dst, const T &data) {
+        BTC::Io<T>::serialize(dst, data);
+    }
+    template<typename T>
+    static inline void unserialize(xmstream &src, T &data) {
+        BTC::Io<T>::unserialize(src, data);
+    }
+};
+
+// ───────────────────────────────────────────────────────────────────────────────
+// Proto: AuxPoW‐enabled Fractal Bitcoin header, based on BTC::Proto::BlockHeader.
+//───────────────────────────────────────────────────────────────────────────────
 class Proto {
 public:
     static constexpr const char *TickerName = "FB";
@@ -71,6 +91,9 @@ public:
     }
 };
 
+// ───────────────────────────────────────────────────────────────────────────────
+// Stratum: handles worker connections, new work, and merged mining for FB.
+//───────────────────────────────────────────────────────────────────────────────
 class Stratum {
 public:
     static constexpr double DifficultyFactor = 65536.0;
@@ -192,11 +215,10 @@ public:
     static constexpr bool MergedMiningSupport = true;
 
     //──────────────────────────────────────────────────────────────────────────
-    // Below are all the static methods required by StratumInstance<FB::X>.
-    // They mirror DOGE::Stratum’s signatures, with DOGE → FB substitutions.
+    // All static methods required by StratumInstance<FB::X>. Mirror DOGE:
     //──────────────────────────────────────────────────────────────────────────
 
-    // (1) Called when a miner sends “mining.subscribe”.
+    // (1) Called on “mining.subscribe”.
     static void workerConfigOnSubscribe(CWorkerConfig     &workerCfg,
                                         CMiningConfig     &miningCfg,
                                         CStratumMessage   &msg,
@@ -212,7 +234,7 @@ public:
         );
     }
 
-    // (2) Builds “mining.set_difficulty” JSON to send target → miner.
+    // (2) Builds “mining.set_difficulty” JSON.
     static void buildSendTargetMessage(xmstream &stream, double shareDifficulty)
     {
         BTC::Stratum::buildSendTargetMessageImpl(
@@ -222,7 +244,7 @@ public:
         );
     }
 
-    // (3) Create a new primary Work (standard BTC work).
+    // (3) Create a new primary work (BTC).
     static BTC::Stratum::Work* newPrimaryWork(int64_t                    stratumId,
                                               PoolBackend               *backend,
                                               size_t                      backendIdx,
@@ -252,7 +274,7 @@ public:
                : nullptr;
     }
 
-    // (4) Create a new secondary Work (FB single-chain work).
+    // (4) Create a new secondary work (FB single chain).
     static FbWork* newSecondaryWork(int64_t                    stratumId,
                                     PoolBackend               *backend,
                                     size_t                      backendIdx,
@@ -282,7 +304,7 @@ public:
                : nullptr;
     }
 
-    // (5) Create a new MergedWork (BTC + FB merged mining).
+    // (5) Create a new merged-mining work (BTC + FB).
     static StratumMergedWork* newMergedWork(int64_t                    stratumId,
                                             StratumSingleWork         *primaryWork,
                                             std::vector<StratumSingleWork*> &secondaryWorks,
@@ -315,7 +337,7 @@ public:
         );
     }
 
-    // (6) Decode a JSON string from the miner → our CStratumMessage.
+    // (6) Decode JSON from miner → CStratumMessage.
     static EStratumDecodeStatusTy decodeStratumMessage(CStratumMessage &msg,
                                                        const char      *in,
                                                        size_t           size)
@@ -323,21 +345,21 @@ public:
         return BTC::Stratum::decodeStratumMessage(msg, in, size);
     }
 
-    // (7) Initialize miningCfg from the instance’s JSON.
+    // (7) Initialize miningConfig from instance’s JSON.
     static void miningConfigInitialize(CMiningConfig  &miningCfg,
                                        rapidjson::Value &instanceCfg)
     {
         BTC::Stratum::miningConfigInitialize(miningCfg, instanceCfg);
     }
 
-    // (8) Initialize workerCfg before mining.subscribe.
+    // (8) Initialize workerConfig before subscribe.
     static void workerConfigInitialize(CWorkerConfig &workerCfg,
                                        ThreadConfig   &threadCfg)
     {
         BTC::Stratum::workerConfigInitialize(workerCfg, threadCfg);
     }
 
-    // (9) Setup version-rolling mask if requested.
+    // (9) Setup version rolling.
     static void workerConfigSetupVersionRolling(CWorkerConfig &workerCfg,
                                                 uint32_t        versionMask)
     {
@@ -347,7 +369,12 @@ public:
 
 }; // class Stratum
 
-//────────────────── Io specialization for AuxPoW protobuf header ───────────
+} // namespace FB
+
+
+// ───────────────────────────────────────────────────────────────────────────────
+// Io specialization for AuxPoW BlockHeader (template<> must appear).
+//───────────────────────────────────────────────────────────────────────────────
 namespace BTC {
     template<>
     struct Io<FB::Proto::BlockHeader> {
@@ -357,5 +384,3 @@ namespace BTC {
 }
 
 void serializeJsonInside(xmstream &stream, const FB::Proto::BlockHeader &header);
-
-} // namespace FB

@@ -7,25 +7,25 @@
 
 namespace BTC {
   //------------------------------------------------------------------------------------------------
-  // Serialize FB::Proto::BlockHeader exactly like AuxPoW. First the 80‐byte BTC header, then
+  // Serialize FB::Proto::BlockHeader exactly like AuxPoW. First the 80-byte BTC header, then
   // (if VERSION_AUXPOW is set) all the AuxPoW payload fields.
   //------------------------------------------------------------------------------------------------
   void Io<FB::Proto::BlockHeader>::serialize(xmstream &dst, const FB::Proto::BlockHeader &data) {
-    // 1) Write pure 80‐byte BTC header (cast away AuxPoW fields)
+    // 1) Write pure 80-byte BTC header (cast away AuxPoW fields)
     BTC::serialize(dst, *(const BTC::Proto::BlockHeader*)&data);
 
     // 2) If AuxPoW bit is set, serialize AuxPoW extras:
     if (data.nVersion & FB::Proto::BlockHeader::VERSION_AUXPOW) {
-      // a) Parent‐chain coinbase transaction
+      // a) Parent-chain coinbase transaction
       BTC::serialize(dst, data.ParentBlockCoinbaseTx);
       // b) Parent header’s hash, Merkle branch, and index
       BTC::serialize(dst, data.HashBlock);
       BTC::serialize(dst, data.MerkleBranch);
       BTC::serialize(dst, data.Index);
-      // c) Chain‐merkle branch (empty for FB) and chain index
+      // c) Chain-merkle branch (empty for FB) and chain index
       BTC::serialize(dst, data.ChainMerkleBranch);
       BTC::serialize(dst, data.ChainIndex);
-      // d) Full parent header so pool can re‐check its PoW
+      // d) Full parent header so pool can re-check its PoW
       BTC::serialize(dst, data.ParentBlock);
     }
   }
@@ -46,7 +46,7 @@ namespace BTC {
 } // namespace BTC
 
 //------------------------------------------------------------------------------------------------
-// JSON‐serializer for getblocktemplate: write only the “inside” fields of the FB header.
+// JSON-serializer for getblocktemplate: write only the “inside” fields of the FB header.
 // (PoolCore’s mining logic does not use this directly; it’s here in case an external FB
 // daemon needs to include AuxPoW fields in JSON responses to wallets, etc.)
 //------------------------------------------------------------------------------------------------
@@ -56,8 +56,8 @@ void serializeJsonInside(xmstream &stream, const FB::Proto::BlockHeader &header)
 
   // Pure BTC header
   serializeJson(stream, "version", header.nVersion);
-  stream.write(",\"previousblockhash\":"); serializeJson(stream, header.hashPrevBlock);
-  stream.write(",\"merkleroot\":");        serializeJson(stream, header.hashMerkleRoot);
+  stream.write(",\"previousblockhash\":"); serializeJson(stream, header.hashPrevBlock.ToString());
+  stream.write(",\"merkleroot\":");        serializeJson(stream, header.hashMerkleRoot.ToString());
   stream.write(",\"time\":");               serializeJson(stream, header.nTime);
   stream.write(",\"bits\":");               serializeJson(stream, header.nBits);
   stream.write(",\"nonce\":");              serializeJson(stream, header.nNonce);
@@ -65,13 +65,13 @@ void serializeJsonInside(xmstream &stream, const FB::Proto::BlockHeader &header)
   // AuxPoW fields if present
   if (header.nVersion & FB::Proto::BlockHeader::VERSION_AUXPOW) {
     stream.write(",\"parentcoinbase\":");       serializeJson(stream, header.ParentBlockCoinbaseTx);
-    stream.write(",\"hashblock\":");            serializeJson(stream, header.HashBlock);
+    stream.write(",\"hashblock\":");            serializeJson(stream, header.HashBlock.ToString());
 
     // MerkleBranch array
     stream.write(",\"merklebranch\":");
     stream.write("[");
     for (size_t i = 0; i < header.MerkleBranch.size(); ++i) {
-      serializeJson(stream, header.MerkleBranch[i]);
+      serializeJson(stream, header.MerkleBranch[i].ToString());
       if (i + 1 < header.MerkleBranch.size()) stream.write(",");
     }
     stream.write("]");
@@ -82,13 +82,13 @@ void serializeJsonInside(xmstream &stream, const FB::Proto::BlockHeader &header)
     stream.write(",\"chainmerklebranch\":");
     stream.write("[");
     for (size_t i = 0; i < header.ChainMerkleBranch.size(); ++i) {
-      serializeJson(stream, header.ChainMerkleBranch[i]);
+      serializeJson(stream, header.ChainMerkleBranch[i].ToString());
       if (i + 1 < header.ChainMerkleBranch.size()) stream.write(",");
     }
     stream.write("]");
 
     stream.write(",\"chainindex\":");           serializeJson(stream, header.ChainIndex);
-    stream.write(",\"parentblock\":");           serializeJson(stream, header.ParentBlock);
+    stream.write(",\"parentblock\":");          serializeJson(stream, header.ParentBlock);
   }
 
   stream.write("}");
@@ -99,12 +99,12 @@ namespace {
   // AuxPoW “magic” header (same as DOGE)
   static const unsigned char pchMergedMiningHeader[] = { 0xfa, 0xbe, 'm', 'm' };
 
-  // Compute minimal Merkle‐path height to accommodate count leaves
+  // Compute minimal Merkle-path height to accommodate count leaves
   static unsigned merklePathSize(unsigned count) {
     return count > 1 ? (31 - __builtin_clz((count << 1) - 1)) : 0;
   }
 
-  // Pseudo‐random index in [0, 2^h) given nonce and chainId
+  // Pseudo-random index in [0, 2^h) given nonce and chainId
   static uint32_t getExpectedIndex(uint32_t nNonce, int nChainId, unsigned h) {
     uint32_t x = nNonce;
     x = x * 1103515245 + 12345;
@@ -292,7 +292,7 @@ Stratum::MergedWork::MergedWork(
     (uint256&)fbHeaders_[0].HashBlock,
     fbHeaders_[0].MerkleBranch
   );
-  // Convert to big‐endian bytes, then reverse to little‐endian for coinbase:
+  // Convert to big-endian bytes, then reverse to little-endian for coinbase:
   std::vector<uint8_t> rootBytes(32);
   childRoot.ToBytes(rootBytes.data());
   std::reverse(rootBytes.begin(), rootBytes.end());
@@ -318,7 +318,7 @@ Stratum::MergedWork::MergedWork(
 }
 
 //------------------------------------------------------------------------------------------------
-// shareHash: always use primary’s share‐hash (FB shares count only on primary).
+// shareHash: always use primary’s share-hash (FB shares count only on primary).
 //------------------------------------------------------------------------------------------------
 Proto::BlockHashTy Stratum::MergedWork::shareHash() {
   return btcWork()->shareHash();
@@ -379,7 +379,7 @@ bool Stratum::MergedWork::prepareForSubmit(
     // ,"merklebranch":[…]
     stream.write(",\"merklebranch\":[");
     for (size_t j = 0; j < fbHeaders_[i].MerkleBranch.size(); ++j) {
-      serializeJson(stream, fbHeaders_[i].MerkleBranch[j]);
+      serializeJson(stream, fbHeaders_[i].MerkleBranch[j].ToString());
       if (j + 1 < fbHeaders_[i].MerkleBranch.size()) stream.write(",");
     }
     stream.write("]");
@@ -388,7 +388,7 @@ bool Stratum::MergedWork::prepareForSubmit(
     // ,"chainmerklebranch":[…]
     stream.write(",\"chainmerklebranch\":[");
     for (size_t j = 0; j < fbHeaders_[i].ChainMerkleBranch.size(); ++j) {
-      serializeJson(stream, fbHeaders_[i].ChainMerkleBranch[j]);
+      serializeJson(stream, fbHeaders_[i].ChainMerkleBranch[j].ToString());
       if (j + 1 < fbHeaders_[i].ChainMerkleBranch.size()) stream.write(",");
     }
     stream.write("]");
@@ -397,7 +397,7 @@ bool Stratum::MergedWork::prepareForSubmit(
     // ,"parentcoinbasetx":
     stream.write(",\"parentcoinbasetx\":"); serializeJson(stream, fbHeaders_[i].ParentBlockCoinbaseTx);
     // ,"hashblock":
-    stream.write(",\"hashblock\":"); serializeJson(stream, fbHeaders_[i].HashBlock);
+    stream.write(",\"hashblock\":"); serializeJson(stream, fbHeaders_[i].HashBlock.ToString());
     stream.write("}");
     if (i + 1 < fbHeaders_.size()) stream.write(",");
   }
@@ -416,7 +416,7 @@ void Stratum::MergedWork::buildBlock(size_t workIdx, xmstream &blockHexData) {
 }
 
 //------------------------------------------------------------------------------------------------
-// checkConsensus: verify primary’s POW or FB’s parent‐block POW.
+// checkConsensus: verify primary’s POW or FB’s parent-block POW.
 //------------------------------------------------------------------------------------------------
 CCheckStatus Stratum::MergedWork::checkConsensus(size_t workIdx) {
   if (workIdx == 0) {

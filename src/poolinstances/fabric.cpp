@@ -25,7 +25,7 @@ std::unordered_map<std::string, PoolInstanceFabric::NewPoolInstanceFunction> Poo
                    rapidjson::Value &config, CPriceFetcher *priceFetcher) {
     return new StratumInstance<FB::X>(base, userMgr, linkedBackends, pool,
                                       instanceId, instancesNum, config, priceFetcher);
-  },
+  }},
   {"LTC.stratum", [](asyncBase *base, UserManager &userMgr, const std::vector<PoolBackend*> &linkedBackends, CThreadPool &pool, unsigned instanceId, unsigned instancesNum, rapidjson::Value &config, CPriceFetcher *priceFetcher) { return new StratumInstance<LTC::X>(base, userMgr, linkedBackends, pool, instanceId, instancesNum, config, priceFetcher); }},
   {"ZEC.stratum", [](asyncBase *base, UserManager &userMgr, const std::vector<PoolBackend*> &linkedBackends, CThreadPool &pool, unsigned instanceId, unsigned instancesNum, rapidjson::Value &config, CPriceFetcher *priceFetcher) { return new StratumInstance<ZEC::X>(base, userMgr, linkedBackends, pool, instanceId, instancesNum, config, priceFetcher); }},
   {"XPM.zmq", [](asyncBase *base, UserManager &userMgr, const std::vector<PoolBackend*> &linkedBackends, CThreadPool &pool, unsigned instanceId, unsigned instancesNum, rapidjson::Value &config, CPriceFetcher*) { return new ZmqInstance<XPM::X>(base, userMgr, linkedBackends, pool, instanceId, instancesNum, config); }}

@@ -135,3 +135,41 @@ namespace FB {
 
   // … buildBlock(...) and checkConsensus(...) copied from DOGE, substituting FB vs. DOGE …
 }
+
+void BTC::Io<FB::Proto::BlockHeader>::serialize(xmstream &dst, const FB::Proto::BlockHeader &data)
+{
+  BTC::serialize(dst, *(FB::Proto::PureBlockHeader*)&data);
+  if (data.nVersion & FB::Proto::BlockHeader::VERSION_AUXPOW) {
+    BTC::serialize(dst, data.ParentBlockCoinbaseTx);
+
+    BTC::serialize(dst, data.HashBlock);
+    BTC::serialize(dst, data.MerkleBranch);
+    BTC::serialize(dst, data.Index);
+
+    BTC::serialize(dst, data.ChainMerkleBranch);
+    BTC::serialize(dst, data.ChainIndex);
+    BTC::serialize(dst, data.ParentBlock);
+  }
+}
+
+//------------------------------------------------------------------------------------------------
+// FB::serializeJsonInside: write JSON for FB::Proto::BlockHeader
+//------------------------------------------------------------------------------------------------
+void serializeJsonInside(xmstream &stream, const FB::Proto::BlockHeader &header)
+{
+  serializeJson(stream, "version", header.nVersion); stream.write(',');
+  serializeJson(stream, "hashPrevBlock", header.hashPrevBlock); stream.write(',');
+  serializeJson(stream, "hashMerkleRoot", header.hashMerkleRoot); stream.write(',');
+  serializeJson(stream, "time", header.nTime); stream.write(',');
+  serializeJson(stream, "bits", header.nBits); stream.write(',');
+  serializeJson(stream, "nonce", header.nNonce); stream.write(',');
+  serializeJson(stream, "parentBlockCoinbaseTx", header.ParentBlockCoinbaseTx); stream.write(',');
+  serializeJson(stream, "hashBlock", header.HashBlock); stream.write(',');
+  serializeJson(stream, "merkleBranch", header.MerkleBranch); stream.write(',');
+  serializeJson(stream, "index", header.Index); stream.write(',');
+  serializeJson(stream, "chainMerkleBranch", header.ChainMerkleBranch); stream.write(',');
+  serializeJson(stream, "chainIndex", header.ChainIndex); stream.write(',');
+  stream.write("\"parentBlock\":{");
+  serializeJsonInside(stream, header.ParentBlock);
+  stream.write('}');
+}

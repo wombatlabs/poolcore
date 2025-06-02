@@ -5,6 +5,12 @@
 #include "blockmaker/serialize.h"      // for BTC::serialize / unserialize
 #include "poolinstances/stratum.h"     // for StratumMergedWork, CStratumMessage, etc.
 
+static void quoteString(xmstream &stream, const std::string &s) {
+    stream.write("\"", 1);
+    stream.write(s.data(), s.size());
+    stream.write("\"", 1);
+}
+
 namespace BTC {
   //------------------------------------------------------------------------------------------------
   // Serialize FB::Proto::BlockHeader exactly like AuxPoW. First the 80-byte BTC header, then
@@ -51,47 +57,60 @@ namespace BTC {
 // daemon needs to include AuxPoW fields in JSON responses to wallets, etc.)
 //------------------------------------------------------------------------------------------------
 void serializeJsonInside(xmstream &stream, const FB::Proto::BlockHeader &header) {
-  // We use serializeJson(...) (from "blockmaker/serializeJson.h") for every field.
-  stream.write("{");
+  // We use serializeJson(...) (from "blockmaker/serializeJson.h") for numeric or object fields,
+  // and manual quoting for uint256 hashes.
+  stream.write("{", 1);
 
   // Pure BTC header
   serializeJson(stream, "version", header.nVersion);
-  stream.write(",\"previousblockhash\":"); serializeJson(stream, header.hashPrevBlock.ToString());
-  stream.write(",\"merkleroot\":");        serializeJson(stream, header.hashMerkleRoot.ToString());
-  stream.write(",\"time\":");               serializeJson(stream, header.nTime);
-  stream.write(",\"bits\":");               serializeJson(stream, header.nBits);
-  stream.write(",\"nonce\":");              serializeJson(stream, header.nNonce);
+  stream.write(",\"previousblockhash\":", 21);
+  quoteString(stream, header.hashPrevBlock.ToString());
+  stream.write(",\"merkleroot\":", 14);
+  quoteString(stream, header.hashMerkleRoot.ToString());
+  stream.write(",\"time\":", 8);
+  serializeJson(stream, header.nTime);
+  stream.write(",\"bits\":", 8);
+  serializeJson(stream, header.nBits);
+  stream.write(",\"nonce\":", 9);
+  serializeJson(stream, header.nNonce);
 
   // AuxPoW fields if present
   if (header.nVersion & FB::Proto::BlockHeader::VERSION_AUXPOW) {
-    stream.write(",\"parentcoinbase\":");       serializeJson(stream, header.ParentBlockCoinbaseTx);
-    stream.write(",\"hashblock\":");            serializeJson(stream, header.HashBlock.ToString());
+    stream.write(",\"parentcoinbase\":", 17);
+    serializeJson(stream, header.ParentBlockCoinbaseTx);
+
+    stream.write(",\"hashblock\":", 13);
+    quoteString(stream, header.HashBlock.ToString());
 
     // MerkleBranch array
-    stream.write(",\"merklebranch\":");
-    stream.write("[");
+    stream.write(",\"merklebranch\":", 16);
+    stream.write("[", 1);
     for (size_t i = 0; i < header.MerkleBranch.size(); ++i) {
-      serializeJson(stream, header.MerkleBranch[i].ToString());
-      if (i + 1 < header.MerkleBranch.size()) stream.write(",");
+      quoteString(stream, header.MerkleBranch[i].ToString());
+      if (i + 1 < header.MerkleBranch.size()) stream.write(",", 1);
     }
-    stream.write("]");
+    stream.write("]", 1);
 
-    stream.write(",\"index\":");                serializeJson(stream, header.Index);
+    stream.write(",\"index\":", 9);
+    serializeJson(stream, header.Index);
 
     // ChainMerkleBranch array (FB has none)
-    stream.write(",\"chainmerklebranch\":");
-    stream.write("[");
+    stream.write(",\"chainmerklebranch\":", 21);
+    stream.write("[", 1);
     for (size_t i = 0; i < header.ChainMerkleBranch.size(); ++i) {
-      serializeJson(stream, header.ChainMerkleBranch[i].ToString());
-      if (i + 1 < header.ChainMerkleBranch.size()) stream.write(",");
+      quoteString(stream, header.ChainMerkleBranch[i].ToString());
+      if (i + 1 < header.ChainMerkleBranch.size()) stream.write(",", 1);
     }
-    stream.write("]");
+    stream.write("]", 1);
 
-    stream.write(",\"chainindex\":");           serializeJson(stream, header.ChainIndex);
-    stream.write(",\"parentblock\":");          serializeJson(stream, header.ParentBlock);
+    stream.write(",\"chainindex\":", 14);
+    serializeJson(stream, header.ChainIndex);
+
+    stream.write(",\"parentblock\":", 13);
+    serializeJson(stream, header.ParentBlock);
   }
 
-  stream.write("}");
+  stream.write("}", 1);
 }
 
 namespace FB {
@@ -369,39 +388,44 @@ bool Stratum::MergedWork::prepareForSubmit(
              );
   if (!ok) return false;
 
-  // 2) Append ,\"auxpow\":[…] for each FB secondary
+  // 2) Append ,"auxpow":[…] for each FB secondary
   xmstream &stream = msg.getSubmitStream();
-  stream.write(",\"auxpow\":[");
+  stream.write(",\"auxpow\":[", 10);
   for (size_t i = 0; i < fbHeaders_.size(); ++i) {
-    stream.write("{");
+    stream.write("{", 1);
     // "parentblock":
-    stream.write("\"parentblock\":"); serializeJson(stream, fbHeaders_[i].ParentBlock);
+    stream.write("\"parentblock\":", 14);
+    serializeJson(stream, fbHeaders_[i].ParentBlock);
     // ,"merklebranch":[…]
-    stream.write(",\"merklebranch\":[");
+    stream.write(",\"merklebranch\":[", 17);
     for (size_t j = 0; j < fbHeaders_[i].MerkleBranch.size(); ++j) {
-      serializeJson(stream, fbHeaders_[i].MerkleBranch[j].ToString());
-      if (j + 1 < fbHeaders_[i].MerkleBranch.size()) stream.write(",");
+      quoteString(stream, fbHeaders_[i].MerkleBranch[j].ToString());
+      if (j + 1 < fbHeaders_[i].MerkleBranch.size()) stream.write(",", 1);
     }
-    stream.write("]");
+    stream.write("]", 1);
     // ,"index":
-    stream.write(",\"index\":"); serializeJson(stream, fbHeaders_[i].Index);
+    stream.write(",\"index\":", 9);
+    serializeJson(stream, fbHeaders_[i].Index);
     // ,"chainmerklebranch":[…]
-    stream.write(",\"chainmerklebranch\":[");
+    stream.write(",\"chainmerklebranch\":[", 21);
     for (size_t j = 0; j < fbHeaders_[i].ChainMerkleBranch.size(); ++j) {
-      serializeJson(stream, fbHeaders_[i].ChainMerkleBranch[j].ToString());
-      if (j + 1 < fbHeaders_[i].ChainMerkleBranch.size()) stream.write(",");
+      quoteString(stream, fbHeaders_[i].ChainMerkleBranch[j].ToString());
+      if (j + 1 < fbHeaders_[i].ChainMerkleBranch.size()) stream.write(",", 1);
     }
-    stream.write("]");
+    stream.write("]", 1);
     // ,"chainindex":
-    stream.write(",\"chainindex\":"); serializeJson(stream, fbHeaders_[i].ChainIndex);
+    stream.write(",\"chainindex\":", 14);
+    serializeJson(stream, fbHeaders_[i].ChainIndex);
     // ,"parentcoinbasetx":
-    stream.write(",\"parentcoinbasetx\":"); serializeJson(stream, fbHeaders_[i].ParentBlockCoinbaseTx);
+    stream.write(",\"parentcoinbasetx\":", 19);
+    serializeJson(stream, fbHeaders_[i].ParentBlockCoinbaseTx);
     // ,"hashblock":
-    stream.write(",\"hashblock\":"); serializeJson(stream, fbHeaders_[i].HashBlock.ToString());
-    stream.write("}");
-    if (i + 1 < fbHeaders_.size()) stream.write(",");
+    stream.write(",\"hashblock\":", 13);
+    quoteString(stream, fbHeaders_[i].HashBlock.ToString());
+    stream.write("}", 1);
+    if (i + 1 < fbHeaders_.size()) stream.write(",", 1);
   }
-  stream.write("]");
+  stream.write("]", 1);
 
   return true;
 }

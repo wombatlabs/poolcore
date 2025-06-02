@@ -3,7 +3,6 @@
 #include "poolinstances/stratum.h"            // for SubscribeInfo, CMiningConfig, CWorkerConfig, etc.
 #include "btc.h"                               // for BTC::Proto, BTC::Stratum, BTC::WorkTy, etc.
 #include "poolinstances/stratumWorkStorage.h"  // for StratumMergedWork, StratumSingleWork
-#include "blockmaker/stratumMerge.h"
 
 namespace FB {
 

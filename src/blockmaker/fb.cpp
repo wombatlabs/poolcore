@@ -154,45 +154,44 @@ namespace FB {
 
 } // namespace FB
 
+// ────────────────────────────────────────────────────────────────────────────────
+// Provide an inline Io<> specialization for FB::AuxPoWBlockHeader.
+// Putting it in fb.h ensures fabric.cpp (and any other TU) sees it.
+// ────────────────────────────────────────────────────────────────────────────────
 namespace BTC {
 
-  // Tell the compiler “here’s how to serialize an FB::AuxPoWBlockHeader.”
   template<>
   struct Io<FB::AuxPoWBlockHeader> {
-    // Serialize writes out:
-    //   1) The pure Bitcoin header bytes (nVersion, hashPrevBlock, hashMerkleRoot, nTime, nBits, nNonce).
-    //   2) If VERSION_AUXPOW is set, the full AuxPoW payload: parentCoinbaseTx, hashBlock, merkleBranch, index, chainMerkleBranch, chainIndex, parentBlock.
+    // Serialize the “pure” Bitcoin header, then (if VERSION_AUXPOW is set)
+    // serialize the AuxPoW fields exactly as Doge does.
     static inline void serialize(xmstream &dst, const FB::AuxPoWBlockHeader &data) {
-      // 1) Serialize the 80‐byte “pure” Bitcoin header first
-      //    (we cast away FB extras because AuxPoWBlockHeader inherits from BTC::Proto::BlockHeader).
+      // 1) Write out the 80‐byte Bitcoin header fields (version, prevHash, merkleRoot, time, bits, nonce)
       BTC::serialize(dst, *(BTC::Proto::BlockHeader*)&data);
 
-      // 2) If the AuxPoW bit is in nVersion, serialize the extra AuxPoW fields:
+      // 2) If the AuxPoW flag is set, write the extra fields:
       if (data.nVersion & FB::AuxPoWBlockHeader::VERSION_AUXPOW) {
         // 2.a) Parent‐chain coinbase transaction
         BTC::serialize(dst, data.parentCoinbaseTx);
 
-        // 2.b) Parent header’s hash, merkle branch, and index
+        // 2.b) Parent header’s hash, its Merkle‐branch, and index
         BTC::serialize(dst, data.hashBlock);
         BTC::serialize(dst, data.merkleBranch);
         BTC::serialize(dst, data.index);
 
-        // 2.c) If FB itself were merged under something else, serialize those chain‐merkle fields
+        // 2.c) (Optional) Chain‐merkle fields if FB were itself merged under another chain
         BTC::serialize(dst, data.chainMerkleBranch);
         BTC::serialize(dst, data.chainIndex);
 
-        // 2.d) Finally, serialize the full parent header so the pool can re‐check its PoW
+        // 2.d) Finally, serialize the full parent header (so the pool can re‐verify PoW)
         BTC::serialize(dst, data.parentBlock);
       }
     }
 
-    // We do not actually need to unserialize FB’s full AuxPoW header in PoolCore.
-    // But we still provide a stub so the symbol exists. In most mining‐only code,
-    // “unserialize” is never called. If you do need it, you can fill in the inverse logic.
+    // We stub out unserialize because PoolCore never calls it during mining submission.
     static inline void unserialize(xmstream &src, FB::AuxPoWBlockHeader &data) {
-      // (Stubbed out—PoolCore never calls this for mining flow.)
-      // If you do wind up needing it, you’d read the pure header first, then all AuxPoW fields.
+      // (Empty – not used in the mining flow.)
     }
   };
 
 } // namespace BTC
+

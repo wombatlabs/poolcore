@@ -11,6 +11,16 @@ static void quoteString(xmstream &stream, const std::string &s) {
     stream.write("\"", 1);
 }
 
+static void writeNumber(xmstream &stream, uint32_t v) {
+    std::string s = std::to_string(v);
+    stream.write(s.data(), s.size());
+}
+
+static void writeNumber(xmstream &stream, uint64_t v) {
+    std::string s = std::to_string(v);
+    stream.write(s.data(), s.size());
+}
+
 namespace BTC {
   //------------------------------------------------------------------------------------------------
   // Serialize FB::Proto::BlockHeader exactly like AuxPoW. First the 80-byte BTC header, then
@@ -57,8 +67,7 @@ namespace BTC {
 // daemon needs to include AuxPoW fields in JSON responses to wallets, etc.)
 //------------------------------------------------------------------------------------------------
 void serializeJsonInside(xmstream &stream, const FB::Proto::BlockHeader &header) {
-  // We use serializeJson(...) (from "blockmaker/serializeJson.h") for numeric or object fields,
-  // and manual quoting for uint256 hashes.
+  // We use serializeJson(...) for objects; for raw hashes and numbers, we write manually.
   stream.write("{", 1);
 
   // Pure BTC header
@@ -68,11 +77,11 @@ void serializeJsonInside(xmstream &stream, const FB::Proto::BlockHeader &header)
   stream.write(",\"merkleroot\":", 14);
   quoteString(stream, header.hashMerkleRoot.ToString());
   stream.write(",\"time\":", 8);
-  serializeJson(stream, header.nTime);
+  writeNumber(stream, header.nTime);
   stream.write(",\"bits\":", 8);
-  serializeJson(stream, header.nBits);
+  writeNumber(stream, header.nBits);
   stream.write(",\"nonce\":", 9);
-  serializeJson(stream, header.nNonce);
+  writeNumber(stream, header.nNonce);
 
   // AuxPoW fields if present
   if (header.nVersion & FB::Proto::BlockHeader::VERSION_AUXPOW) {
@@ -92,7 +101,7 @@ void serializeJsonInside(xmstream &stream, const FB::Proto::BlockHeader &header)
     stream.write("]", 1);
 
     stream.write(",\"index\":", 9);
-    serializeJson(stream, header.Index);
+    writeNumber(stream, header.Index);
 
     // ChainMerkleBranch array (FB has none)
     stream.write(",\"chainmerklebranch\":", 21);
@@ -104,7 +113,7 @@ void serializeJsonInside(xmstream &stream, const FB::Proto::BlockHeader &header)
     stream.write("]", 1);
 
     stream.write(",\"chainindex\":", 14);
-    serializeJson(stream, header.ChainIndex);
+    writeNumber(stream, header.ChainIndex);
 
     stream.write(",\"parentblock\":", 13);
     serializeJson(stream, header.ParentBlock);
@@ -405,7 +414,7 @@ bool Stratum::MergedWork::prepareForSubmit(
     stream.write("]", 1);
     // ,"index":
     stream.write(",\"index\":", 9);
-    serializeJson(stream, fbHeaders_[i].Index);
+    writeNumber(stream, fbHeaders_[i].Index);
     // ,"chainmerklebranch":[…]
     stream.write(",\"chainmerklebranch\":[", 21);
     for (size_t j = 0; j < fbHeaders_[i].ChainMerkleBranch.size(); ++j) {
@@ -415,7 +424,7 @@ bool Stratum::MergedWork::prepareForSubmit(
     stream.write("]", 1);
     // ,"chainindex":
     stream.write(",\"chainindex\":", 14);
-    serializeJson(stream, fbHeaders_[i].ChainIndex);
+    writeNumber(stream, fbHeaders_[i].ChainIndex);
     // ,"parentcoinbasetx":
     stream.write(",\"parentcoinbasetx\":", 19);
     serializeJson(stream, fbHeaders_[i].ParentBlockCoinbaseTx);

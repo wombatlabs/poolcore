@@ -72,7 +72,7 @@ namespace FB {
 
   class Stratum {
   public:
-    static constexpr double DifficultyFactor = 65536.0;
+    static constexpr double DifficultyFactor = 1;
 
     using FbWork = BTC::WorkTy<FB::Proto,
                                BTC::Stratum::HeaderBuilder,
@@ -198,5 +198,20 @@ namespace FB {
       BTC::Stratum::workerConfigSetupVersionRolling(workerCfg, versionMask);
     }
     // … etc. (mirror BTC::Stratum) …
+  };
+}
+
+namespace FB {
+  struct X {
+    using Proto   = FB::Proto;
+    using Stratum = FB::Stratum;
+    template<typename T>
+    static inline void serialize(xmstream &dst, const T &data) {
+      BTC::Io<T>::serialize(dst, data);
+    }
+    template<typename T>
+    static inline void unserialize(xmstream &src, T &data) {
+      BTC::Io<T>::unserialize(src, data);
+    }
   };
 }

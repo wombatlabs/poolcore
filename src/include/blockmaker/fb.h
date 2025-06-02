@@ -6,7 +6,13 @@
 
 namespace FB {
 
-// ───────────────────────────────────────────────────────────────────────────────
+//───────────────────────────────────────────────────────────────────────────────
+// Forward declarations so struct X can refer to these types before they’re defined
+//───────────────────────────────────────────────────────────────────────────────
+class Proto;
+class Stratum;
+
+//───────────────────────────────────────────────────────────────────────────────
 // Meta‐struct “X” so that Fabric can do “StratumInstance<FB::X>” exactly like BTC.
 //───────────────────────────────────────────────────────────────────────────────
 struct X {
@@ -23,7 +29,7 @@ struct X {
     }
 };
 
-// ───────────────────────────────────────────────────────────────────────────────
+//───────────────────────────────────────────────────────────────────────────────
 // Proto: AuxPoW‐enabled Fractal Bitcoin header, based on BTC::Proto::BlockHeader.
 //───────────────────────────────────────────────────────────────────────────────
 class Proto {
@@ -91,7 +97,7 @@ public:
     }
 };
 
-// ───────────────────────────────────────────────────────────────────────────────
+//───────────────────────────────────────────────────────────────────────────────
 // Stratum: handles worker connections, new work, and merged mining for FB.
 //───────────────────────────────────────────────────────────────────────────────
 class Stratum {
@@ -274,7 +280,7 @@ public:
                : nullptr;
     }
 
-    // (4) Create a new secondary work (FB single chain).
+    // (4) Create a new secondary work (FB single-chain).
     static FbWork* newSecondaryWork(int64_t                    stratumId,
                                     PoolBackend               *backend,
                                     size_t                      backendIdx,
@@ -377,10 +383,4 @@ public:
 //───────────────────────────────────────────────────────────────────────────────
 namespace BTC {
     template<>
-    struct Io<FB::Proto::BlockHeader> {
-        static void serialize(xmstream &dst, const FB::Proto::BlockHeader &data);
-        static void unserialize(xmstream &src, FB::Proto::BlockHeader &data);
-    };
-}
-
-void serializeJsonInside(xmstream &stream, const FB::Proto::BlockHeader &header);
+   

@@ -96,19 +96,17 @@ namespace FB {
 
     // 4) For each secondary (FB under something else), copy header+coinbase, toggle AuxPoW:
     for (size_t i = 0; i < nSec; i++) {
-      FBWork *secWk = static_cast<FBWork*>(secondaries[i]);
-      auto    &hdr  = FBSecondaryHeaders_[i];
-      auto    &coin = FBCoinbaseTransactions_[i];
-      auto    &wit  = FBWitnesses_[i];
+        FBWork *secWk = static_cast<FBWork*>(secondaries[i]);
+        auto    &hdr  = FBSecondaryHeaders_[i];
+        auto    &coin = FBCoinbaseTransactions_[i];
+        auto    &wit  = FBWitnesses_[i];
 
-      hdr    = secWk->Header;           // copy child’s header
-      coin   = secWk->CBTxLegacy_;      // copy child’s legacy coinbase
-      wit    = secWk->CBTxWitness_;     // copy child’s witness coinbase
-      hdr.nVersion |= FB::AuxPoWBlockHeader::VERSION_AUXPOW;  // set AuxPoW bit
+        hdr  = secWk->Header;          // copy child’s header
+        coin = secWk->CBTxLegacy_;     // copy child’s legacy coinbase
+        wit  = secWk->CBTxWitness_;    // copy child’s witness coinbase
+        hdr.nVersion |= FB::AuxPoWBlockHeader::VERSION_AUXPOW;
 
-      // (Build this child’s Merkle‐branch & chain index → EXACT same as DOGE code, 
-      //  using getExpectedIndex(auxNonce, chainId, h) and merkleTree::calculateRoot. 
-      //  Omitted here for brevity; copy from doge.cpp but with FB types.)
+        // … now build this child’s Merkle‐branch exactly as DOGE does, using getExpectedIndex() …
     }
 
     // 5) Finally, recompute the primary Header’s Merkle root over the AuxPoW branches,

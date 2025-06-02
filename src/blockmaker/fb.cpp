@@ -153,3 +153,35 @@ namespace FB {
   }
 
 } // namespace FB
+
+namespace BTC {
+  template<> struct Io<FB::AuxPoWBlockHeader> {
+    static void serialize(xmstream &dst, const FB::AuxPoWBlockHeader &data) {
+      // 1) Serialize the “pure” Bitcoin header first:
+      BTC::serialize(dst, *(BTC::Proto::BlockHeader*)&data);
+
+      // 2) If the VERSION_AUXPOW bit is set, serialize the AuxPoW fields:
+      if (data.nVersion & FB::AuxPoWBlockHeader::VERSION_AUXPOW) {
+        // Parent coinbase transaction:
+        BTC::serialize(dst, data.parentCoinbaseTx);
+
+        // Parent header’s hash, merkle branch, index:
+        BTC::serialize(dst, data.hashBlock);
+        BTC::serialize(dst, data.merkleBranch);
+        BTC::serialize(dst, data.index);
+
+        // Chain‐merkle branch (if any) and chain index:
+        BTC::serialize(dst, data.chainMerkleBranch);
+        BTC::serialize(dst, data.chainIndex);
+
+        // Finally, serialize the parentBlock (so the pool can re‐check its PoW):
+        BTC::serialize(dst, data.parentBlock);
+      }
+    }
+
+    // If you need submit‐side unserialization (usually not for mining), you can stub it:
+    static void unserialize(xmstream &src, FB::AuxPoWBlockHeader &data) {
+      // (Left unimplemented if PoolCore never unserializes FB’s full AuxPoW header.)
+    }
+  };
+}

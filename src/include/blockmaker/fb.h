@@ -154,7 +154,7 @@ namespace FB {
 
     private:
       BTC::Stratum::Work *btcWork() { return static_cast<BTC::Stratum::Work*>(Works_[0].Work); }
-      FB::Stratum::FbWork *fbWork(unsigned index) { return static_cast<FB::Stratum::FbWork*>(Works_[index + 1].Work); }
+      FB::Stratum::FbWork *fbWork(unsigned index) { return static_cast<FB::Stratum::FbWork*>(Works_[index  1].Work); }
 
     private:
       BTC::Proto::BlockHeader       BTCHeader_;
@@ -170,6 +170,122 @@ namespace FB {
       std::vector<int>                    FBWorkMap_;
       FB::Proto::CheckConsensusCtx        FBConsensusCtx_;
     };
+
+    // These static methods are _required_ by StratumInstance<FB::X> in fabric.cpp
+    // Copy them exactly from DOGE::Stratum, but rename DOGE → FB, DogeWork → FbWork
+
+    // Called when a miner sends “subscribe”; it customizes workerConfig
+    static void workerConfigOnSubscribe(CWorkerConfig &workerCfg,
+                                        const CMiningConfig &miningCfg,
+                                        const CStratumMessage &msg,
+                                        xmstream &stream,
+                                        SubscribeInfo &subscribeInfo)
+    {
+      // FB is Bitcoin‐like, so delegate to BTC:
+      BTC::Stratum::workerConfigOnSubscribe(workerCfg,
+                                            miningCfg,
+                                            msg,
+                                            stream,
+                                            subscribeInfo);
+    }
+
+    // Builds the “target” message (difficulty) to send back to the miner
+    static void buildSendTargetMessage(xmstream &stream, double shareDifficulty)
+    {
+      BTC::Stratum::buildSendTargetMessage(stream, shareDifficulty);
+    }
+
+    // Create a new “primary” work (i.e. standard Bitcoin work)
+    static CSingleWork* newPrimaryWork(uint64_t stratumId,
+                                       PoolBackend *backend,
+                                       unsigned backendIdx,
+                                       CMiningConfig &miningCfg,
+                                       const std::string &miningAddress,
+                                       const std::vector<unsigned char> &coinbaseMsg,
+                                       CBlockTemplate *blockTemplate,
+                                       std::string &error)
+    {
+      return BTC::Stratum::newPrimaryWork(stratumId,
+                                          backend,
+                                          backendIdx,
+                                          miningCfg,
+                                          miningAddress,
+                                          coinbaseMsg,
+                                          blockTemplate,
+                                          error);
+    }
+
+    // Create a new “secondary” work (i.e. FB single‐chain work)
+    static CSingleWork* newSecondaryWork(uint64_t stratumId,
+                                         PoolBackend *backend,
+                                         unsigned backendIdx,
+                                         CMiningConfig &miningCfg,
+                                         const std::string &miningAddress,
+                                         const std::vector<unsigned char> &coinbaseMsg,
+                                         CBlockTemplate *blockTemplate,
+                                         std::string &error)
+    {
+      // Instantiate an FB::Stratum::FbWork
+      return new FbWork(stratumId,
+                        backend,
+                        backendIdx,
+                        miningCfg,
+                        miningAddress,
+                        coinbaseMsg,
+                        blockTemplate,
+                        error);
+    }
+
+    // Create a new MergedWork (Bitcoin  FB merged mining)
+    static CMergedWork* newMergedWork(uint64_t stratumId,
+                                      CSingleWork *primaryWork,
+                                      std::vector<CSingleWork*> &secondaryWorks,
+                                      CMiningConfig &miningCfg,
+                                      std::string &error)
+    {
+      // In DOGE::Stratum, this extracted mmChainId/mmNonce/virtualHashesNum first.
+      // You must copy that same logic here (just rename DOGE → FB).
+      std::vector<int> mmChainId;
+      uint32_t mmNonce;
+      unsigned virtualHashesNum;
+
+      // (Pseudo–code: fill mmChainId, mmNonce, virtualHashesNum exactly as DOGE does,
+      // but casting each secondaryWork to FB::Stratum::FbWork* instead of DogeWork*)
+
+      return new MergedWork(stratumId,
+                            primaryWork,
+                            secondaryWorks,
+                            mmChainId,
+                            mmNonce,
+                            virtualHashesNum,
+                            miningCfg);
+    }
+
+    // Now copy any remaining static helpers from DOGE::Stratum, e.g.:
+    static EStratumDecodeStatusTy decodeStratumMessage(CStratumMessage &msg,
+                                                       const char *in,
+                                                       size_t size)
+    {
+      return BTC::Stratum::decodeStratumMessage(msg, in, size);
+    }
+
+    static void miningConfigInitialize(CMiningConfig &miningCfg,
+                                       rapidjson::Value &instanceCfg)
+    {
+      BTC::Stratum::miningConfigInitialize(miningCfg, instanceCfg);
+    }
+
+    static void workerConfigInitialize(CWorkerConfig &workerCfg,
+                                       ThreadConfig &threadCfg)
+    {
+      BTC::Stratum::workerConfigInitialize(workerCfg, threadCfg);
+    }
+
+    static void workerConfigSetupVersionRolling(CWorkerConfig &workerCfg,
+                                                uint32_t versionMask)
+    {
+      BTC::Stratum::workerConfigSetupVersionRolling(workerCfg, versionMask);
+    }
 
     static std::vector<int> buildChainMap(std::vector<StratumSingleWork*> &secondary,
                                           uint32_t &nonce,

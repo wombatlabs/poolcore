@@ -102,8 +102,8 @@ namespace FB {
         auto    &wit  = FBWitnesses_[i];
 
         hdr  = secWk->Header;          // copy child’s header
-        coin = secWk->CBTxLegacy_;     // copy child’s legacy coinbase
-        wit  = secWk->CBTxWitness_;    // copy child’s witness coinbase
+        coin = std::move(secWk->CBTxLegacy_);   // move child’s legacy coinbase
+        wit  = std::move(secWk->CBTxWitness_);  // move child’s witness coinbase
         hdr.nVersion |= FB::AuxPoWBlockHeader::VERSION_AUXPOW;
 
         // … now build this child’s Merkle‐branch exactly as DOGE does, using getExpectedIndex() …

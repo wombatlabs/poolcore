@@ -4,7 +4,7 @@
 #include "blockmaker/serializeJson.h"
 #include "blockmaker/serialize.h"         // for BTC::serialize(xmstream&, ...)
 #include "poolinstances/stratum.h"        // for StratumMergedWork base class
-#include "poolcommon/arith_uint256.hpp"   // for uint256
+#include "poolcommon/arith_uint256.h"   // for uint256
 
 namespace BTC {
   //============================================================================== 

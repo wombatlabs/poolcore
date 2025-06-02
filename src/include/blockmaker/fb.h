@@ -244,3 +244,26 @@ namespace FB {
   };
 
 } // namespace FB
+
+namespace BTC {
+  template<>
+  struct Io<FB::AuxPoWBlockHeader> {
+    static inline void serialize(xmstream &dst, const FB::AuxPoWBlockHeader &data) {
+      // 1) Pure Bitcoin header
+      BTC::serialize(dst, *(BTC::Proto::BlockHeader*)&data);
+      // 2) AuxPoW fields if VERSION_AUXPOW is set
+      if (data.nVersion & FB::AuxPoWBlockHeader::VERSION_AUXPOW) {
+        BTC::serialize(dst, data.parentCoinbaseTx);
+        BTC::serialize(dst, data.hashBlock);
+        BTC::serialize(dst, data.merkleBranch);
+        BTC::serialize(dst, data.index);
+        BTC::serialize(dst, data.chainMerkleBranch);
+        BTC::serialize(dst, data.chainIndex);
+        BTC::serialize(dst, data.parentBlock);
+      }
+    }
+    static inline void unserialize(xmstream &src, FB::AuxPoWBlockHeader &data) {
+      /* Unused by mining path; stub if needed */
+    }
+  };
+} // namespace BTC

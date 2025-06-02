@@ -101,10 +101,10 @@ namespace FB {
       auto    &coin = FBCoinbaseTransactions_[i];
       auto    &wit  = FBWitnesses_[i];
 
-      hdr  = secWk->Header;                // copy child’s header
-      coin = secWk->LegacyCoinbaseTx;      // copy child’s legacy coinbase
-      wit  = secWk->WitnessCoinbaseTx;     // copy child’s witness coinbase (segwit)
-      hdr.nVersion |= Proto::AuxPoWBlockHeader::VERSION_AUXPOW;  // set AuxPoW bit
+      hdr    = secWk->Header;                  // copy child’s header
+      legacy = secWk->CBTxLegacy_;             // copy child’s legacy coinbase :contentReference[oaicite:0]{index=0}
+      wit    = secWk->CBTxWitness_;            // copy child’s witness coinbase :contentReference[oaicite:1]{index=1}
+      hdr.nVersion |= FB::AuxPoWBlockHeader::VERSION_AUXPOW;  // set AuxPoW flag
 
       // (Build this child’s Merkle‐branch & chain index → EXACT same as DOGE code, 
       //  using getExpectedIndex(auxNonce, chainId, h) and merkleTree::calculateRoot. 

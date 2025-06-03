@@ -129,9 +129,32 @@ namespace FB {
   bool Stratum::MergedWork::prepareForSubmit(const CWorkerConfig &workerCfg,
                                              const CStratumMessage &msg)
   {
-    // Mirror DOGE’s logic: if primary (workIdx 0) → call BTC; else → call FB
-    // (Implementation details omitted for brevity; copy DOGE’s pattern verbatim)
-  }
+    if (!BTC::Stratum::Work::prepareForSubmitImpl(BTCHeader_, BTCHeader_.nVersion, BTCLegacy_, BTCWitness_, BTCMerklePath_, workerCfg, MiningCfg_, msg))
+        return false;
+
+    for (size_t workIdx = 0; workIdx < FBHeader_.size(); workIdx++) {
+        FB::Proto::BlockHeader &header = FBHeader_[workIdx];
+        BTCWitness_.Data.seekSet(0);
+        BTC::unserialize(BTCWitness_.Data, header.ParentBlockCoinbaseTx);
+
+        header.HashBlock.SetNull();
+        header.Index = 0;
+
+        header.MerkleBranch.resize(BTCMerklePath_.size());
+        for (size_t j = 0, je = BTCMerklePath_.size(); j != je; ++j)
+        header.MerkleBranch[j] = BTCMerklePath_[j];
+
+        std::vector<uint256> path;
+        buildMerklePath(FBHeaderHashes_, FBWorkMap_[workIdx], path);
+        header.ChainMerkleBranch.resize(path.size());
+        for (size_t j = 0; j < path.size(); j++)
+        header.ChainMerkleBranch[j] = path[j];
+        header.ChainIndex = FBWorkMap_[workIdx];
+        header.ParentBlock = BTCHeader_;
+    }
+
+    return true;
+    }
 
   // … buildBlock(...) and checkConsensus(...) copied from DOGE, substituting FB vs. DOGE …
 }

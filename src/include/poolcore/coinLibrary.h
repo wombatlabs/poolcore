@@ -909,6 +909,25 @@ public:
       info.Algorithm = "sha256";
       info.PowLimit = uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
       info.WorkType = EWorkBitcoin;
+    } else if (strcmp(coinName, "VAEM") == 0) {
+      info.Name = "VAEM";
+      info.FullName = "Voltaem";
+      info.PayoutAddressType = static_cast<CCoinInfo::EAddressType>(CCoinInfo::EP2PKH | CCoinInfo::EPS2H);
+      info.RationalPartSize = 100000000;
+      info.SegwitEnabled = true;
+      info.PowerUnitType = CCoinInfo::EHash;
+      info.PowerMultLog10 = 3;
+      info.PubkeyAddressPrefix = {70};
+      info.ScriptAddressPrefix = {22};
+      info.DefaultRpcPort = 20925;
+      info.CoinGeckoName = "pepecoin";
+      info.ProfitSwitchDefaultCoeff = 1.0;
+      info.MinimalConfirmationsNumber = 12;
+      info.Algorithm = "scrypt";
+      info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+      info.CanBeSecondaryCoin = true;
+      info.ResetWorkOnBlockChange = false;
+      info.WorkType = EWorkBitcoin;
     } else if (strcmp(coinName, "XEC") == 0) {
       info.Name = "XEC";
       info.FullName = "eCash";

@@ -157,11 +157,7 @@ public:
     BTC::Stratum::workerConfigOnSubscribe(workerCfg, miningCfg, msg, out, subscribeInfo);
   }
 
-  // Enable version-rolling on the worker if supported
-  static void workerConfigSetupVersionRolling(CWorkerConfig &workerCfg, uint32_t &targetBitMask)
-  {
-    BTC::Stratum::workerConfigSetupVersionRolling(workerCfg, targetBitMask);
-  }
+  static void workerConfigSetupVersionRolling(CWorkerConfig &workerCfg, uint32_t versionMask) { BTC::Stratum::workerConfigSetupVersionRolling(workerCfg, versionMask); }
 
   template<typename T> static inline void serialize(xmstream &src, const T &data) { BTC::Io<T>::serialize(src, data); }
   template<typename T> static inline void unserialize(xmstream &dst, T &data) { BTC::Io<T>::unserialize(dst, data); }

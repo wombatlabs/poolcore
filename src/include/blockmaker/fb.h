@@ -146,7 +146,7 @@ public:
     BTC::Stratum::miningConfigInitialize(cfg, config);
   }
 
-  static void workerConfigInitialize(CWorkerConfig &cfg, const CThreadConfig &threadCfg) {
+  static void workerConfigInitialize(CWorkerConfig &cfg, ThreadConfig &threadCfg) {
     BTC::Stratum::workerConfigInitialize(cfg, threadCfg);
   }
 

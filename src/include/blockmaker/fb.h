@@ -153,13 +153,8 @@ public:
   }
 
   // Called during mining.subscribe to set extranonce, etc.
-  static void workerConfigOnSubscribe(CWorkerConfig &workerCfg,
-                                    const CMiningConfig &miningCfg,
-                                    CStratumMessage &msg,
-                                    xmstream &stream,
-                                    SubscribeInfo &subscribeInfo)
-  {
-    BTC::Stratum::workerConfigOnSubscribe(workerCfg, miningCfg, msg, stream, subscribeInfo);
+  static void workerConfigOnSubscribe(CWorkerConfig &workerCfg, CMiningConfig &miningCfg, CStratumMessage &msg, xmstream &out, std::string &subscribeInfo) {
+    BTC::Stratum::workerConfigOnSubscribe(workerCfg, miningCfg, msg, out, subscribeInfo);
   }
 
   // Enable version-rolling on the worker if supported

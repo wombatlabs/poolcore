@@ -41,7 +41,7 @@ static std::vector<int> buildChainMap(std::vector<StratumSingleWork*> &secondary
 
 namespace FB {
 
-FB::Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
+Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
                                     StratumSingleWork *first,
                                     std::vector<StratumSingleWork*> &second,
                                     std::vector<int> &mmChainId,

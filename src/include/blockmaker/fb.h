@@ -87,6 +87,8 @@ public:
     virtual void buildBlock(size_t workIdx, xmstream &blockHexData) override;
     virtual bool prepareForSubmit(const CWorkerConfig &workerCfg, const CStratumMessage &msg) override;
     virtual CCheckStatus checkConsensus(size_t workIdx) override;
+    virtual void mutate() override;
+    virtual void buildNotifyMessage(bool resetPreviousWork) override;
 
   private:
     BTC::Stratum::Work *btcWork() { return static_cast<BTC::Stratum::Work*>(Works_[0].Work); }

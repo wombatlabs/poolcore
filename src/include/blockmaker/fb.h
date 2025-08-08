@@ -65,6 +65,9 @@ public:
 // Stratum binding similar to DOGE::Stratum, but BTC is the parent.
 class Stratum {
 public:
+  using Proto = FB::Proto;
+  static constexpr bool MergedMiningSupport = true;
+
   static constexpr double DifficultyFactor = 1.0; // same as BTC
   using FBWork = BTC::WorkTy<FB::Proto, BTC::Stratum::HeaderBuilder, BTC::Stratum::CoinbaseBuilder, BTC::Stratum::Notify, BTC::Stratum::Prepare>;
 
@@ -137,6 +140,12 @@ public:
 
   static void buildSendTargetMessage(xmstream &stream, double diff) {
     BTC::Stratum::buildSendTargetMessage(stream, diff);
+  }
+
+  static void miningConfigInitialize(CMiningConfig &cfg, rapidjson::Value &config) {
+    BTC::Stratum::miningConfigInitialize(cfg, config);
+    // It doesn’t hurt to be explicit that this Stratum supports merged mining.
+    cfg.MergedMining = true; // field exists in v0.4; if not, safe to omit
   }
 
   template<typename T> static inline void serialize(xmstream &src, const T &data) { BTC::Io<T>::serialize(src, data); }

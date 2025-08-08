@@ -30,17 +30,25 @@ public:
     PureBlockHeader ParentBlock;
   };
 
-  using Block = BTC::Proto::BlockTy<FB::Proto>;
+  using Transaction = BTC::Proto::Transaction;
+  using Block       = BTC::Proto::BlockTy<FB::Proto>;
 
   using CheckConsensusCtx = BTC::Proto::CheckConsensusCtx;
   using ChainParams       = BTC::Proto::ChainParams;
 
   static void checkConsensusInitialize(CheckConsensusCtx&) {}
-  static CCheckStatus checkConsensus(const Proto::BlockHeader &header, CheckConsensusCtx&, Proto::ChainParams&) {
-    // FB is AuxPoW: PoW is checked on parent if AuxPoW bit is set
-    return (header.nVersion & 0x100) ? // AuxPoW bit (same as Namecoin/DOGE convention)
-           BTC::Proto::checkPow(header.ParentBlock, header.nBits) :
-           BTC::Proto::checkPow(header, header.nBits);
+  static CCheckStatus checkConsensus(const Proto::BlockHeader &header,
+                                     CheckConsensusCtx &ctx,
+                                     Proto::ChainParams &params)
+  {
+    // If AuxPoW bit is set, validate against the parent BTC header
+    if (header.nVersion & 0x100) {
+      return BTC::Proto::checkConsensus(header.ParentBlock, ctx, params);
+    }
+    // Otherwise validate the FB header itself (cast to BTC header base)
+    const BTC::Proto::BlockHeader &base =
+        static_cast<const BTC::Proto::BlockHeader&>(header);
+    return BTC::Proto::checkConsensus(base, ctx, params);
   }
 
   static CCheckStatus checkConsensus(const Proto::Block &block, CheckConsensusCtx &ctx, ChainParams &chainParams) {

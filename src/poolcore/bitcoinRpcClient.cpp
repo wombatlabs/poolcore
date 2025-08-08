@@ -992,9 +992,14 @@ CBitcoinRpcClient::CConnection *CBitcoinRpcClient::getConnection(asyncBase *base
 
 bool CBitcoinRpcClient::ioCreateAuxBlock(asyncBase *base, AuxBlockInfo &info)
 {
-  static const std::string q = R"json({"method":"createauxblock","params":[]})json";
+  static const std::string q = "{\"method\":\"createauxblock\",\"params\":[]}";
+  CConnection connection;
+  if (ioConnect(base, connection) != CNetworkClient::Success)
+    return false;
   rapidjson::Document document;
-  if (!parseJson(base, q, document))
+  auto st = ioQueryJson(connection, q, document, QueryTimeoutUs_); // <-- use the same timeout var used elsewhere
+  ioDisconnect(connection);
+  if (st != CNetworkClient::Success)
     return false;
 
   if (!document.HasMember("result") || !document["result"].IsObject())
@@ -1023,9 +1028,16 @@ bool CBitcoinRpcClient::ioCreateAuxBlock(asyncBase *base, AuxBlockInfo &info)
 bool CBitcoinRpcClient::ioSubmitAuxBlock(asyncBase *base, const std::string &hash, const std::string &auxpowHex, std::string &error)
 {
   // submitauxblock "<hash>" "<auxpow-hex>"
-  std::string q = std::string(R"json({"method":"submitauxblock","params":[")json") + hash + R"json("," )json" + "\"" + auxpowHex + "\"]}";
+  std::string q = std::string("{\"method\":\"submitauxblock\",\"params\":[\"") + hash + "\",\"" + auxpowHex + "\"]}";
+  CConnection connection;
+  if (ioConnect(base, connection) != CNetworkClient::Success) {
+    error = "connect failed";
+    return false;
+  }
   rapidjson::Document document;
-  if (!parseJson(base, q, document)) {
+  auto st = ioQueryJson(connection, q, document, QueryTimeoutUs_); // <-- same timeout symbol as elsewhere
+  ioDisconnect(connection);
+  if (st != CNetworkClient::Success) {
     error = "rpc call failed";
     return false;
   }

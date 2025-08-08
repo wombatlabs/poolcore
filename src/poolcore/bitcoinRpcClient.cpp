@@ -992,14 +992,15 @@ CBitcoinRpcClient::CConnection *CBitcoinRpcClient::getConnection(asyncBase *base
 
 bool CBitcoinRpcClient::ioCreateAuxBlock(asyncBase *base, AuxBlockInfo &info)
 {
-  static const std::string q = "{\"method\":\"createauxblock\",\"params\":[]}";
-  CConnection connection;
-  if (ioConnect(base, connection) != CNetworkClient::Success)
+  std::unique_ptr<CConnection> connection(getConnection(base));
+  if (!connection)
     return false;
+  if (ioHttpConnect(connection->Client, &Address_, nullptr, 5000000) != 0)
+    return false;
+
+  const std::string q = "{\"method\":\"createauxblock\",\"params\":[]}";
   rapidjson::Document document;
-  auto st = ioQueryJson(connection, q, document, QueryTimeoutUs_); // <-- use the same timeout var used elsewhere
-  ioDisconnect(connection);
-  if (st != CNetworkClient::Success)
+  if (ioQueryJson<rapidjson::kParseDefaultFlags>(*connection, q, document, 10000000) != EStatusOk)
     return false;
 
   if (!document.HasMember("result") || !document["result"].IsObject())
@@ -1025,26 +1026,34 @@ bool CBitcoinRpcClient::ioCreateAuxBlock(asyncBase *base, AuxBlockInfo &info)
   return ok;
 }
 
-bool CBitcoinRpcClient::ioSubmitAuxBlock(asyncBase *base, const std::string &hash, const std::string &auxpowHex, std::string &error)
+bool CBitcoinRpcClient::ioSubmitAuxBlock(asyncBase *base,
+                                         const std::string &hash,
+                                         const std::string &auxpowHex,
+                                         std::string &error)
 {
-  // submitauxblock "<hash>" "<auxpow-hex>"
-  std::string q = std::string("{\"method\":\"submitauxblock\",\"params\":[\"") + hash + "\",\"" + auxpowHex + "\"]}";
-  CConnection connection;
-  if (ioConnect(base, connection) != CNetworkClient::Success) {
+  std::unique_ptr<CConnection> connection(getConnection(base));
+  if (!connection) {
+    error = "connect alloc failed";
+    return false;
+  }
+  if (ioHttpConnect(connection->Client, &Address_, nullptr, 5000000) != 0) {
     error = "connect failed";
     return false;
   }
+
+  std::string q = std::string("{\"method\":\"submitauxblock\",\"params\":[\"")
+                  + hash + "\",\"" + auxpowHex + "\"]}";
   rapidjson::Document document;
-  auto st = ioQueryJson(connection, q, document, QueryTimeoutUs_); // <-- same timeout symbol as elsewhere
-  ioDisconnect(connection);
-  if (st != CNetworkClient::Success) {
+  if (ioQueryJson<rapidjson::kParseDefaultFlags>(*connection, q, document, 10000000) != EStatusOk) {
     error = "rpc call failed";
     return false;
   }
+
   if (document.HasMember("error") && !document["error"].IsNull()) {
     error = "submitauxblock error";
     return false;
   }
-  // Some daemons return true, some null on success — treat both as success
+
+  // Some daemons return true, some null on success — accept both.
   return true;
 }

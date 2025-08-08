@@ -144,8 +144,10 @@ public:
 
   static void miningConfigInitialize(CMiningConfig &cfg, rapidjson::Value &config) {
     BTC::Stratum::miningConfigInitialize(cfg, config);
-    // It doesn’t hurt to be explicit that this Stratum supports merged mining.
-    cfg.MergedMining = true; // field exists in v0.4; if not, safe to omit
+  }
+
+  static void workerConfigInitialize(CWorkerConfig &cfg, const CThreadConfig &threadCfg) {
+    BTC::Stratum::workerConfigInitialize(cfg, threadCfg);
   }
 
   template<typename T> static inline void serialize(xmstream &src, const T &data) { BTC::Io<T>::serialize(src, data); }

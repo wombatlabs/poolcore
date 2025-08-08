@@ -142,6 +142,8 @@ public:
     BTC::Stratum::buildSendTargetMessage(stream, diff);
   }
 
+  static EStratumDecodeStatusTy decodeStratumMessage(CStratumMessage &msg, const char *in, size_t size) { return BTC::Stratum::decodeStratumMessage(msg, in, size); }
+
   static void miningConfigInitialize(CMiningConfig &cfg, rapidjson::Value &config) {
     BTC::Stratum::miningConfigInitialize(cfg, config);
   }

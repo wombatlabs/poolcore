@@ -41,19 +41,21 @@ static std::vector<int> buildChainMap(std::vector<StratumSingleWork*> &secondary
 
 namespace FB {
 
-Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
-                                StratumSingleWork *first,
-                                std::vector<StratumSingleWork*> &second,
-                                std::vector<int> &mmChainId,
-                                uint32_t mmNonce,
-                                unsigned int virtualHashesNum,
-                                const CMiningConfig &miningCfg)
+FB::Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
+                                    StratumSingleWork *first,
+                                    std::vector<StratumSingleWork*> &second,
+                                    std::vector<int> &mmChainId,
+                                    uint32_t mmNonce,
+                                    unsigned virtualHashesNum,
+                                    const CMiningConfig &miningCfg)
   : StratumMergedWork(stratumWorkId, first, second, miningCfg)
 {
-  // Primary (BTC)
-  BTCHeader_ = btcWork()->Header;
+  // === Primary (BTC) context copied, no heavy objects copied ===
+  BTCHeader_       = btcWork()->Header;
+  BTCMerklePath_   = btcWork()->MerklePath;
+  BTCConsensusCtx_ = btcWork()->ConsensusCtx_;
 
-  // Secondaries
+  // === Secondaries (FB) ===
   FBHeader_.resize(second.size());
   FBLegacy_.resize(second.size());
   FBWitness_.resize(second.size());
@@ -64,7 +66,10 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
   for (size_t workIdx = 0; workIdx < FBHeader_.size(); workIdx++) {
     FB::Stratum::FBWork *work = fbWork(workIdx);
     FB::Proto::BlockHeader &header = FBHeader_[workIdx];
-    // Copy only the POD/header fields (avoid CoinbaseTx inside BlockHeader)
+    BTC::CoinbaseTx &legacy = FBLegacy_[workIdx];
+    BTC::CoinbaseTx &witness = FBWitness_[workIdx];
+
+    // Copy only POD fields from template header (avoid copying CoinbaseTx/xmstream members)
     header.nVersion       = work->Header.nVersion;
     header.hashPrevBlock  = work->Header.hashPrevBlock;
     header.hashMerkleRoot = work->Header.hashMerkleRoot;
@@ -72,18 +77,53 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
     header.nBits          = work->Header.nBits;
     header.nNonce         = work->Header.nNonce;
 
-    // Set AuxPoW bit and compute the FB header merkle root from a static FB coinbase (no extranonce) + path
-    header.nVersion |= 0x100; // AuxPoW bit
+    // --- Build a static FB coinbase (no extranonce) like DOGE does ---
+    CMiningConfig emptyExtraNonceConfig;
+    emptyExtraNonceConfig.FixedExtraNonceSize   = 0;
+    emptyExtraNonceConfig.MutableExtraNonceSize = 0;
+    work->buildCoinbaseTx(nullptr, 0, emptyExtraNonceConfig, legacy, witness);
+
+    // --- Compute FB merkle root from that static coinbase and FB merkle path ---
+    header.nVersion |= 0x100; // AuxPoW bit (same convention as Namecoin/DOGE)
     {
-      // BTC::Work exposes MerklePath that starts with coinbase txid
-      const std::vector<uint256> &path = btcWork()->MerklePath;
-      if (!path.empty())
-        header.hashMerkleRoot = calculateMerkleRoot(path.data(), path.size());
-      header.HashBlock = header.GetHash();
-      FBHeaderHashes_[workIdx] = header.HashBlock;
+      // double-SHA256(coinbase) -> coinbaseTxHash
+      uint256 coinbaseTxHash;
+      CCtxSha256 sha256;
+      sha256Init(&sha256);
+      sha256Update(&sha256, legacy.Data.data(), legacy.Data.sizeOf());
+      sha256Final(&sha256, coinbaseTxHash.begin());
+      sha256Init(&sha256);
+      sha256Update(&sha256, coinbaseTxHash.begin(), coinbaseTxHash.size());
+      sha256Final(&sha256, coinbaseTxHash.begin());
+
+      // FB work already exposes MerklePath like DOGE work
+      header.hashMerkleRoot = calculateMerkleRootWithPath(
+          coinbaseTxHash, &work->MerklePath[0], work->MerklePath.size(), 0);
     }
+
+    // Save FB header hash in the virtual chain slot
+    FBHeaderHashes_[FBWorkMap_[workIdx]] = header.GetHash();
   }
+
+  // --- Build the "chain merkle root" over all FB header hashes (reverse to LE bytes) ---
+  uint256 chainMerkleRoot = calculateMerkleRoot(&FBHeaderHashes_[0], FBHeaderHashes_.size());
+  std::reverse(chainMerkleRoot.begin(), chainMerkleRoot.end());
+
+  // --- Prepare BTC coinbase with merged-mining commitment, exactly like LTC side for DOGE ---
+  uint8_t buffer[1024];
+  xmstream coinbaseMsg(buffer, sizeof(buffer));
+  coinbaseMsg.reset();
+  coinbaseMsg.write(pchMergedMiningHeader, sizeof(pchMergedMiningHeader)); // 0xfa 0xbe 'm' 'm'
+  coinbaseMsg.write(chainMerkleRoot.begin(), sizeof(uint256));             // chain merkle root (reversed)
+  coinbaseMsg.write<uint32_t>(virtualHashesNum);                           // tree size
+  coinbaseMsg.write<uint32_t>(mmNonce);                                    // fixed part of nonce
+
+  // This splices the commitment into the BTC coinbase and builds legacy+witness templates
+  btcWork()->buildCoinbaseTx(coinbaseMsg.data(), coinbaseMsg.sizeOf(), miningCfg, BTCLegacy_, BTCWitness_);
+
+  FBConsensusCtx_ = fbWork(0)->ConsensusCtx_;
 }
+
 
 std::string Stratum::MergedWork::blockHash(size_t workIdx)
 {

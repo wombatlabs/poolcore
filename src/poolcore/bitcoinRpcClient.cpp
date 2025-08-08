@@ -994,7 +994,7 @@ bool CBitcoinRpcClient::ioCreateAuxBlock(asyncBase *base, AuxBlockInfo &info)
 {
   static const std::string q = R"json({"method":"createauxblock","params":[]})json";
   rapidjson::Document document;
-  if (!ioQueryJson(base, q, document))
+  if (!parseJson(base, q, document))
     return false;
 
   if (!document.HasMember("result") || !document["result"].IsObject())
@@ -1025,7 +1025,7 @@ bool CBitcoinRpcClient::ioSubmitAuxBlock(asyncBase *base, const std::string &has
   // submitauxblock "<hash>" "<auxpow-hex>"
   std::string q = std::string(R"json({"method":"submitauxblock","params":[")json") + hash + R"json("," )json" + "\"" + auxpowHex + "\"]}";
   rapidjson::Document document;
-  if (!ioQueryJson(base, q, document)) {
+  if (!parseJson(base, q, document)) {
     error = "rpc call failed";
     return false;
   }

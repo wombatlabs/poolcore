@@ -152,6 +152,22 @@ public:
     BTC::Stratum::workerConfigInitialize(cfg, threadCfg);
   }
 
+  // Called during mining.subscribe to set extranonce, etc.
+  static void workerConfigOnSubscribe(CWorkerConfig &workerCfg,
+                                    const CMiningConfig &miningCfg,
+                                    CStratumMessage &msg,
+                                    xmstream &stream,
+                                    SubscribeInfo &subscribeInfo)
+  {
+    BTC::Stratum::workerConfigOnSubscribe(workerCfg, miningCfg, msg, stream, subscribeInfo);
+  }
+
+  // Enable version-rolling on the worker if supported
+  static void workerConfigSetupVersionRolling(CWorkerConfig &workerCfg, uint32_t &targetBitMask)
+  {
+    BTC::Stratum::workerConfigSetupVersionRolling(workerCfg, targetBitMask);
+  }
+
   template<typename T> static inline void serialize(xmstream &src, const T &data) { BTC::Io<T>::serialize(src, data); }
   template<typename T> static inline void unserialize(xmstream &dst, T &data) { BTC::Io<T>::unserialize(dst, data); }
 };

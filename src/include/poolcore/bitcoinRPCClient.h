@@ -188,4 +188,18 @@ private:
   std::string BalanceQuery_;
   std::string BalanceQueryWithImmatured_;
   std::string GetWalletInfoQuery_;
+
+public:
+  struct AuxBlockInfo {
+    std::string hash;   // aux block hash to commit
+    int64_t     height{0};
+    int64_t     chainid{0};
+    std::string target; // hex target if provided
+  };
+
+  // Returns true on success, fills out info
+  bool ioCreateAuxBlock(asyncBase *base, AuxBlockInfo &info);
+
+  // Returns true on success
+  bool ioSubmitAuxBlock(asyncBase *base, const std::string &hash, const std::string &auxpowHex, std::string &error);
 };

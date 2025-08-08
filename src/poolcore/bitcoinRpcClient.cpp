@@ -989,3 +989,50 @@ CBitcoinRpcClient::CConnection *CBitcoinRpcClient::getConnection(asyncBase *base
   connection->Client = httpClientNew(base, newSocketIo(base, connection->Socket));
   return connection;
 }
+
+bool CBitcoinRpcClient::ioCreateAuxBlock(asyncBase *base, AuxBlockInfo &info)
+{
+  static const std::string q = R"json({"method":"createauxblock","params":[]})json";
+  rapidjson::Document document;
+  if (!ioJsonRpcCommand(base, q, document))
+    return false;
+
+  if (!document.HasMember("result") || !document["result"].IsObject())
+    return false;
+
+  auto &r = document["result"];
+  bool ok = true;
+
+  if (r.HasMember("hash") && r["hash"].IsString())
+    info.hash = r["hash"].GetString();
+  else
+    ok = false;
+
+  if (r.HasMember("height") && r["height"].IsInt64())
+    info.height = r["height"].GetInt64();
+
+  if (r.HasMember("chainid") && r["chainid"].IsInt64())
+    info.chainid = r["chainid"].GetInt64();
+
+  if (r.HasMember("target") && r["target"].IsString())
+    info.target = r["target"].GetString();
+
+  return ok;
+}
+
+bool CBitcoinRpcClient::ioSubmitAuxBlock(asyncBase *base, const std::string &hash, const std::string &auxpowHex, std::string &error)
+{
+  // submitauxblock "<hash>" "<auxpow-hex>"
+  std::string q = std::string(R"json({"method":"submitauxblock","params":[")json") + hash + R"json("," )json" + "\"" + auxpowHex + "\"]}";
+  rapidjson::Document document;
+  if (!ioJsonRpcCommand(base, q, document)) {
+    error = "rpc call failed";
+    return false;
+  }
+  if (document.HasMember("error") && !document["error"].IsNull()) {
+    error = "submitauxblock error";
+    return false;
+  }
+  // Some daemons return true, some null on success — treat both as success
+  return true;
+}

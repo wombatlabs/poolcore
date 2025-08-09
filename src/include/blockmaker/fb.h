@@ -17,7 +17,6 @@ public:
   // We store AuxPoW fields alongside the pure header for local assembly
   struct BlockHeader : public PureBlockHeader {
     // AuxPoW payload (for submit)
-    BTC::CoinbaseTx ParentBlockCoinbaseTx;
     BTC::Proto::BlockHashTy HashBlock;        // FB block hash (after we compute it)
     xvector<uint256> MerkleBranch;            // Parent (BTC) merkle path to coinbase
     int Index = 0;                            // Parent coinbase index in tree
@@ -89,6 +88,8 @@ public:
     virtual CCheckStatus checkConsensus(size_t workIdx) override;
     virtual void mutate() override;
     virtual void buildNotifyMessage(bool resetPreviousWork) override;
+
+    virtual void buildBlock(size_t workIdx, xmstream &blockHexData) override;
 
   private:
     BTC::Stratum::Work *btcWork() { return static_cast<BTC::Stratum::Work*>(Works_[0].Work); }

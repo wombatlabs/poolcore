@@ -41,6 +41,14 @@ static std::vector<int> buildChainMap(std::vector<StratumSingleWork*> &secondary
 
 namespace FB {
 
+Stratum::MergedWork::buildBlock(size_t workIdx, xmstream &blockHexData)
+{
+  // Only the primary (BTC) produces a raw block here; FB is submitted via submitauxblock.
+  if (workIdx == 0 && btcWork()) {
+    btcWork()->buildBlock(workIdx, blockHexData);
+  }
+}
+
 Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
                                     StratumSingleWork *first,
                                     std::vector<StratumSingleWork*> &second,
@@ -140,25 +148,15 @@ bool Stratum::MergedWork::prepareForSubmit(const CWorkerConfig &workerCfg, const
   if (!BTC::Stratum::Work::prepareForSubmitImpl(BTCHeader_, /*asicBoostData*/0, BTCLegacy_, BTCWitness_, BTCMerklePath_, workerCfg, MiningCfg_, msg))
     return false;
 
-  // Build AuxPoW for each FB secondary
+  // Build AuxPoW metadata (except coinbase) for each FB secondary
   for (size_t i = 0; i < FBHeader_.size(); i++) {
     FB::Proto::BlockHeader &h = FBHeader_[i];
-
-    BTCWitness_.Data.seekSet(0);
-    BTC::unserialize(BTCWitness_.Data, h.ParentBlockCoinbaseTx);
-
     h.HashBlock.SetNull();
     h.Index = 0;
-
-    h.MerkleBranch.resize(BTCMerklePath_.size());
-    for (size_t j = 0; j < BTCMerklePath_.size(); j++)
-      h.MerkleBranch[j] = BTCMerklePath_[j];
-
+    h.MerkleBranch.assign(BTCMerklePath_.begin(), BTCMerklePath_.end());
     std::vector<uint256> path;
     buildMerklePath(FBHeaderHashes_, FBWorkMap_[i], path);
-    h.ChainMerkleBranch.resize(path.size());
-    for (size_t j = 0; j < path.size(); j++)
-      h.ChainMerkleBranch[j] = path[j];
+    h.ChainMerkleBranch.assign(path.begin(), path.end());
     h.ChainIndex = FBWorkMap_[i];
     h.ParentBlock = BTCHeader_;
   }
@@ -248,7 +246,6 @@ void Io<FB::Proto::BlockHeader>::serialize(xmstream &dst, const FB::Proto::Block
   BTC::serialize(dst, h.nTime);
   BTC::serialize(dst, h.nBits);
   BTC::serialize(dst, h.nNonce);
-  BTC::serialize(dst, h.ParentBlockCoinbaseTx);
   BTC::serialize(dst, h.HashBlock);
   BTC::serialize(dst, h.MerkleBranch);
   BTC::serialize(dst, h.Index);
@@ -264,7 +261,6 @@ void Io<FB::Proto::BlockHeader>::unserialize(xmstream &src, FB::Proto::BlockHead
   BTC::unserialize(src, h.nTime);
   BTC::unserialize(src, h.nBits);
   BTC::unserialize(src, h.nNonce);
-  BTC::unserialize(src, h.ParentBlockCoinbaseTx);
   BTC::unserialize(src, h.HashBlock);
   BTC::unserialize(src, h.MerkleBranch);
   BTC::unserialize(src, h.Index);

@@ -89,8 +89,6 @@ public:
     virtual void mutate() override;
     virtual void buildNotifyMessage(bool resetPreviousWork) override;
 
-    virtual void buildBlock(size_t workIdx, xmstream &blockHexData) override;
-
   private:
     BTC::Stratum::Work *btcWork() { return static_cast<BTC::Stratum::Work*>(Works_[0].Work); }
     FB::Stratum::FBWork *fbWork(unsigned index) { return static_cast<FB::Stratum::FBWork*>(Works_[index + 1].Work); }

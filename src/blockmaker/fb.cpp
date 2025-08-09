@@ -142,24 +142,38 @@ std::string Stratum::MergedWork::blockHash(size_t workIdx)
   return std::string();
 }
 
-bool Stratum::MergedWork::prepareForSubmit(const CWorkerConfig &workerCfg, const CStratumMessage &msg)
+bool FB::Stratum::MergedWork::prepareForSubmit(const CWorkerConfig &workerCfg,
+                                               const CStratumMessage &msg)
 {
   // Fill primary BTC header from the miner’s share fields
-  if (!BTC::Stratum::Work::prepareForSubmitImpl(BTCHeader_, /*asicBoostData*/0, BTCLegacy_, BTCWitness_, BTCMerklePath_, workerCfg, MiningCfg_, msg))
+  if (!BTC::Stratum::Work::prepareForSubmitImpl(
+          BTCHeader_, /*asicBoostData*/ 0, BTCLegacy_, BTCWitness_, BTCMerklePath_,
+          workerCfg, MiningCfg_, msg))
     return false;
 
-  // Build AuxPoW metadata (except coinbase) for each FB secondary
-  for (size_t i = 0; i < FBHeader_.size(); i++) {
-    h.MerkleBranch.resize(BTCMerklePath_.size());
-  for (size_t j = 0; j < BTCMerklePath_.size(); ++j)
-    h.MerkleBranch[j] = BTCMerklePath_[j];
+  // Build AuxPoW metadata for each FB secondary (no coinbase (de)serialization here)
+  for (size_t i = 0; i < FBHeader_.size(); ++i) {
+    FB::Proto::BlockHeader &hdr = FBHeader_[i];
 
-  std::vector<uint256> path;
-  buildMerklePath(FBHeaderHashes_, FBWorkMap_[i], path);
-  h.ChainMerkleBranch.resize(path.size());
-  for (size_t j = 0; j < path.size(); ++j)
-    h.ChainMerkleBranch[j] = path[j];
+    hdr.HashBlock.SetNull();
+    hdr.Index = 0;
+
+    // Parent (BTC) tx merkle branch path -> coinbase
+    hdr.MerkleBranch.resize(BTCMerklePath_.size());
+    for (size_t j = 0; j < BTCMerklePath_.size(); ++j)
+      hdr.MerkleBranch[j] = BTCMerklePath_[j];
+
+    // Chain (virtual) merkle branch for the FB header among secondaries
+    std::vector<uint256> path;
+    buildMerklePath(FBHeaderHashes_, FBWorkMap_[i], path);
+    hdr.ChainMerkleBranch.resize(path.size());
+    for (size_t j = 0; j < path.size(); ++j)
+      hdr.ChainMerkleBranch[j] = path[j];
+
+    hdr.ChainIndex = FBWorkMap_[i];
+    hdr.ParentBlock = BTCHeader_;
   }
+
   return true;
 }
 

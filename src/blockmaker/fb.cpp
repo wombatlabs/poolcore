@@ -41,7 +41,7 @@ static std::vector<int> buildChainMap(std::vector<StratumSingleWork*> &secondary
 
 namespace FB {
 
-Stratum::MergedWork::buildBlock(size_t workIdx, xmstream &blockHexData)
+void FB::Stratum::MergedWork::buildBlock(size_t workIdx, xmstream &blockHexData)
 {
   // Only the primary (BTC) produces a raw block here; FB is submitted via submitauxblock.
   if (workIdx == 0 && btcWork()) {
@@ -150,15 +150,15 @@ bool Stratum::MergedWork::prepareForSubmit(const CWorkerConfig &workerCfg, const
 
   // Build AuxPoW metadata (except coinbase) for each FB secondary
   for (size_t i = 0; i < FBHeader_.size(); i++) {
-    FB::Proto::BlockHeader &h = FBHeader_[i];
-    h.HashBlock.SetNull();
-    h.Index = 0;
-    h.MerkleBranch.assign(BTCMerklePath_.begin(), BTCMerklePath_.end());
-    std::vector<uint256> path;
-    buildMerklePath(FBHeaderHashes_, FBWorkMap_[i], path);
-    h.ChainMerkleBranch.assign(path.begin(), path.end());
-    h.ChainIndex = FBWorkMap_[i];
-    h.ParentBlock = BTCHeader_;
+    h.MerkleBranch.resize(BTCMerklePath_.size());
+  for (size_t j = 0; j < BTCMerklePath_.size(); ++j)
+    h.MerkleBranch[j] = BTCMerklePath_[j];
+
+  std::vector<uint256> path;
+  buildMerklePath(FBHeaderHashes_, FBWorkMap_[i], path);
+  h.ChainMerkleBranch.resize(path.size());
+  for (size_t j = 0; j < path.size(); ++j)
+    h.ChainMerkleBranch[j] = path[j];
   }
   return true;
 }

@@ -307,6 +307,17 @@ public:
       int64_t currentTime = time(nullptr);
       unsigned counter = 0;
 
+      for (size_t i = 0, ie = work->backendsNum(); i != ie; ++i) {
+        PoolBackend *b = work->backend(i);
+        if (!b) continue;
+        double ew = work->expectedWork(i);
+        if (ew > 0.0) {
+          if (auto *acc = b->accountingDb()) {
+            acc->setCurrentExpectedWork(ew);
+          }
+        }
+      }
+      /* Old Working
       if (work->backendsNum() > 0) {
         // Index 0 is always the primary for both Single and Merged work
         double expectedWork = work->expectedWork(0);
@@ -315,8 +326,8 @@ public:
           primaryBackend->accountingDb()->setCurrentExpectedWork(expectedWork);
         }
       }
-      // (Optional) guard against zero/NaN
-      /*
+      */
+      /* (Optional) guard against zero/NaN
       if (work->backendsNum() > 0) {
       double expectedWork = work->expectedWork(0);
       if (expectedWork > 0.0) {

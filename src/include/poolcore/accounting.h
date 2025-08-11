@@ -90,6 +90,7 @@ public:
     std::optional<std::string> w;
     if (workerOrNull) w = *workerOrNull;
     TaskHandler_.push(new TaskMinerCurrentEffort(user, std::move(w), std::move(cb)));
+  }
 
   // NEW: round lifecycle
   void setCurrentRound(uint64_t height, double expectedWork);

@@ -1382,11 +1382,9 @@ void AccountingDb::queryBalanceImpl(const std::string &user, QueryBalanceCallbac
   callback(info);
 }
 
-void AccountingDb::setCurrentExpectedWork(double ew)
-{
-  // Expected work is measured in the same “difficulty units” as WorkValue
-  // (e.g., for BTC-like coins, difficultyFromBits(...) units).
-  CurrentExpectedWork_.store(ew, std::memory_order_relaxed);
+void AccountingDb::setCurrentExpectedWork(double ew) {
+  // If you don't know height here, keep prior height; this won’t reset per-miner maps.
+  setCurrentRound(CurrentRoundHeight_, ew);
 }
 
 void AccountingDb::currentEffortImpl(CurrentEffortCallback cb)
@@ -1400,4 +1398,50 @@ void AccountingDb::currentEffortImpl(CurrentEffortCallback cb)
   double effort = (expected > 0.0) ? (accumulated / expected) : 0.0;
 
   if (cb) cb(accumulated, expected, effort);
+}
+
+void AccountingDb::setCurrentRound(uint64_t height, double expectedWork) {
+  std::lock_guard<std::mutex> lk(CurrentRoundMtx_);
+  if (height != CurrentRoundHeight_) {
+    CurrentRoundHeight_ = height;
+    CurrentRoundAccumulatedWork_ = 0.0;    // you likely already do this elsewhere
+    CurrentRoundUserWork_.clear();
+    CurrentRoundUserWorkerWork_.clear();
+  }
+  CurrentRoundExpectedWork_ = expectedWork; // update every broadcast; ok if same height
+}
+
+void AccountingDb::addCurrentRoundWork(const std::string &user,
+                                       const std::string &worker,
+                                       double workValue) {
+  std::lock_guard<std::mutex> lk(CurrentRoundMtx_);
+  CurrentRoundAccumulatedWork_ += workValue; // existing behavior
+  CurrentRoundUserWork_[user] += workValue;
+  if (!worker.empty())
+    CurrentRoundUserWorkerWork_[user][worker] += workValue;
+}
+
+double AccountingDb::getCurrentRoundExpectedWork() const {
+  std::lock_guard<std::mutex> lk(CurrentRoundMtx_);
+  return CurrentRoundExpectedWork_;
+}
+
+uint64_t AccountingDb::getCurrentRoundHeight() const {
+  std::lock_guard<std::mutex> lk(CurrentRoundMtx_);
+  return CurrentRoundHeight_;
+}
+
+double AccountingDb::getCurrentRoundUserWork(const std::string &user) const {
+  std::lock_guard<std::mutex> lk(CurrentRoundMtx_);
+  auto it = CurrentRoundUserWork_.find(user);
+  return it == CurrentRoundUserWork_.end() ? 0.0 : it->second;
+}
+
+double AccountingDb::getCurrentRoundWorkerWork(const std::string &user,
+                                               const std::string &worker) const {
+  std::lock_guard<std::mutex> lk(CurrentRoundMtx_);
+  auto iu = CurrentRoundUserWorkerWork_.find(user);
+  if (iu == CurrentRoundUserWorkerWork_.end()) return 0.0;
+  auto iw = iu->second.find(worker);
+  return iw == iu->second.end() ? 0.0 : iw->second;
 }

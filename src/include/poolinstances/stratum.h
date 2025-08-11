@@ -311,33 +311,11 @@ public:
         PoolBackend *b = work->backend(i);
         if (!b) continue;
         double ew = work->expectedWork(i);
-        if (ew > 0.0) {
-          if (auto *acc = b->accountingDb()) {
-            acc->setCurrentExpectedWork(ew);
-          }
+        uint64_t h = work->height(i);
+        if (auto *acc = b->accountingDb()) {
+          acc->setCurrentRound(h, ew); // <<< round-aware (resets per-miner maps when height flips)
         }
       }
-      /* Old Working
-      if (work->backendsNum() > 0) {
-        // Index 0 is always the primary for both Single and Merged work
-        double expectedWork = work->expectedWork(0);
-        PoolBackend *primaryBackend = work->backend(0);
-        if (primaryBackend && primaryBackend->accountingDb()) {
-          primaryBackend->accountingDb()->setCurrentExpectedWork(expectedWork);
-        }
-      }
-      */
-      /* (Optional) guard against zero/NaN
-      if (work->backendsNum() > 0) {
-      double expectedWork = work->expectedWork(0);
-      if (expectedWork > 0.0) {
-        if (PoolBackend *primaryBackend = work->backend(0)) {
-          if (auto *acc = primaryBackend->accountingDb()) {
-            acc->setCurrentExpectedWork(expectedWork);
-          }
-        }
-      }
-      */
 
       for (auto &connection: data.Connections_) {
         connection->ResendCount = 0;
@@ -751,6 +729,10 @@ private:
       shareAccepted = true;
       if (checkStatus.IsBlock) {
         LOG_F(INFO, "%s: new proof of work for %s found; hash: %s; transactions: %zu", Name_.c_str(), backend->getCoinInfo().Name.c_str(), blockHash.c_str(), work->txNum(i));
+        // (optional) Count block shares as miner work
+        if (auto *acc = backend->accountingDb()) {
+          acc->addCurrentRoundWork(worker.User, worker.WorkerName, connection->ShareDifficulty);
+        }
 
         // Serialize block
         xmstream blockHexData;
@@ -797,6 +779,10 @@ private:
         backendShare->WorkValue = connection->ShareDifficulty;
         backendShare->isBlock = false;
         backend->sendShare(backendShare);
+
+        if (auto *acc = backend->accountingDb()) {
+          acc->addCurrentRoundWork(worker.User, worker.WorkerName, connection->ShareDifficulty);
+        }
 
         if (checkStatus.IsPendingBlock) {
           if (data.WorkStorage.updatePending(i, worker.User, worker.WorkerName, checkStatus.ShareDiff, connection->ShareDifficulty, xatoi<uint64_t>(msg.Submit.JobId.c_str()), connection->WorkerConfig, msg))

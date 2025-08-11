@@ -66,6 +66,23 @@ public:
   // Enqueue async query
   void queryCurrentEffort(CurrentEffortCallback cb) { TaskHandler_.push(new TaskCurrentEffort(std::move(cb))); }
 
+  // NEW: round lifecycle
+  void setCurrentRound(uint64_t height, double expectedWork);
+  // Keep existing setCurrentExpectedWork(...) calling into setCurrentRound(...), or deprecate it.
+
+  // NEW: bump per-miner/worker when a share is accepted
+  void addCurrentRoundWork(const std::string &user,
+                           const std::string &worker,
+                           double workValue);
+
+  // NEW: queries used by the API
+  double getCurrentRoundExpectedWork() const;
+  uint64_t getCurrentRoundHeight() const;
+
+  double getCurrentRoundUserWork(const std::string &user) const; // sum of all workers
+  double getCurrentRoundWorkerWork(const std::string &user,
+                                   const std::string &worker) const;
+
 private:
   using DefaultCb = std::function<void(const char*)>;
   using ManualPayoutCallback = std::function<void(bool)>;
@@ -77,6 +94,17 @@ private:
 
   void currentEffortImpl(CurrentEffortCallback cb);
   std::atomic<double> CurrentExpectedWork_{0.0};
+
+  mutable std::mutex CurrentRoundMtx_;
+
+  uint64_t CurrentRoundHeight_ = 0;
+  double   CurrentRoundExpectedWork_ = 0.0;
+  double   CurrentRoundAccumulatedWork_ = 0.0; // you already have something like this; keep it
+
+  // NEW maps
+  std::unordered_map<std::string, double> CurrentRoundUserWork_; // user -> work
+  std::unordered_map<std::string, std::unordered_map<std::string, double>>
+      CurrentRoundUserWorkerWork_; // user -> worker -> work
 
   struct UserFeePair {
     std::string UserId;

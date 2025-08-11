@@ -17,6 +17,7 @@
 #include <set>
 #include <string>
 #include <atomic>
+#include <optional>
 
 class CPriceFetcher;
 class StatisticDb;

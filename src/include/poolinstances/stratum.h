@@ -306,6 +306,29 @@ public:
 
       int64_t currentTime = time(nullptr);
       unsigned counter = 0;
+
+      if (work->backendsNum() > 0) {
+        // Index 0 is always the primary for both Single and Merged work
+        double expectedWork = work->expectedWork(0);
+        PoolBackend *primaryBackend = work->backend(0);
+        if (primaryBackend && primaryBackend->accountingDb()) {
+          primaryBackend->accountingDb()->setCurrentExpectedWork(expectedWork);
+        }
+      }
+      // (Optional) guard against zero/NaN
+      /*
+      if (work->backendsNum() > 0) {
+      double expectedWork = work->expectedWork(0);
+      if (expectedWork > 0.0) {
+        if (PoolBackend *primaryBackend = work->backend(0)) {
+          if (auto *acc = primaryBackend->accountingDb()) {
+            acc->setCurrentExpectedWork(expectedWork);
+          }
+        }
+      }
+      */
+    }
+
       for (auto &connection: data.Connections_) {
         connection->ResendCount = 0;
         stratumSendWork(connection, work, currentTime);

@@ -16,6 +16,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <atomic>
 
 class CPriceFetcher;
 class StatisticDb;
@@ -47,6 +48,24 @@ public:
     std::map<std::string, double> CurrentScores;
   };
 
+  // Async callback type for current round effort
+  using CurrentEffortCallback = std::function<void(double accumulatedWork, double expectedWork, double effort)>;
+
+  // Async task to fetch current round effort
+  class TaskCurrentEffort : public Task<AccountingDb> {
+  public:
+    TaskCurrentEffort(CurrentEffortCallback cb) : Cb_(std::move(cb)) {}
+    void run(AccountingDb *accounting) final { accounting->currentEffortImpl(Cb_); }
+  private:
+    CurrentEffortCallback Cb_;
+  };
+
+  // Setter from stratum when new work is broadcast
+  void setCurrentExpectedWork(double ew);
+
+  // Enqueue async query
+  void queryCurrentEffort(CurrentEffortCallback cb) { TaskHandler_.push(new TaskCurrentEffort(std::move(cb))); }
+
 private:
   using DefaultCb = std::function<void(const char*)>;
   using ManualPayoutCallback = std::function<void(bool)>;
@@ -55,6 +74,9 @@ private:
   using QueryPPLNSPayoutsCallback = std::function<void(const std::vector<CPPLNSPayout>&)>;
   using QueryPPLNSAccCallback = std::function<void(const std::vector<CPPLNSPayoutAcc>&)>;
   using PoolLuckCallback = std::function<void(const std::vector<double>&)>;
+
+  void currentEffortImpl(CurrentEffortCallback cb);
+  std::atomic<double> CurrentExpectedWork_{0.0};
 
   struct UserFeePair {
     std::string UserId;

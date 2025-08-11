@@ -1381,3 +1381,23 @@ void AccountingDb::queryBalanceImpl(const std::string &user, QueryBalanceCallbac
 
   callback(info);
 }
+
+void AccountingDb::setCurrentExpectedWork(double ew)
+{
+  // Expected work is measured in the same “difficulty units” as WorkValue
+  // (e.g., for BTC-like coins, difficultyFromBits(...) units).
+  CurrentExpectedWork_.store(ew, std::memory_order_relaxed);
+}
+
+void AccountingDb::currentEffortImpl(CurrentEffortCallback cb)
+{
+  // Sum current round work from CurrentScores_
+  double accumulated = 0.0;
+  for (const auto &kv : CurrentScores_)
+    accumulated += kv.second;
+
+  double expected = CurrentExpectedWork_.load(std::memory_order_relaxed);
+  double effort = (expected > 0.0) ? (accumulated / expected) : 0.0;
+
+  if (cb) cb(accumulated, expected, effort);
+}

@@ -50,7 +50,7 @@ public:
 
   // Async callback type for current round effort
   using CurrentEffortCallback = std::function<void(double accumulatedWork, double expectedWork, double effort)>;
-  using MinerEffortCallback = CurrentEffortCallback; // same signature
+  using MinerEffortCallback = std::function<void(double accumulatedWork, double expectedWork, double effort)>;
 
   // Async task to fetch current round effort
   class TaskCurrentEffort : public Task<AccountingDb> {

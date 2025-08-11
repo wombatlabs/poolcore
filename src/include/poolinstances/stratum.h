@@ -776,12 +776,12 @@ private:
         backendShare->userId = worker.User;
         backendShare->workerId = worker.WorkerName;
         backendShare->height = height;
-        backendShare->WorkValue = connection->ShareDifficulty;
+        backendShare->WorkValue = checkStatus.ShareDiff;
         backendShare->isBlock = false;
         backend->sendShare(backendShare);
 
         if (auto *acc = backend->accountingDb()) {
-          acc->addCurrentRoundWork(worker.User, worker.WorkerName, connection->ShareDifficulty);
+          acc->addCurrentRoundWork(worker.User, worker.WorkerName, checkStatus.ShareDiff);
         }
 
         if (checkStatus.IsPendingBlock) {

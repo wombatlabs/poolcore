@@ -17,7 +17,13 @@
 #include <set>
 #include <string>
 #include <atomic>
+
+#include <mutex>
 #include <optional>
+#include <unordered_map>
+#include <unordered_set>
+#include <filesystem>
+#include <limits>
 
 class CPriceFetcher;
 class StatisticDb;

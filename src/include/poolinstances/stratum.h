@@ -327,7 +327,6 @@ public:
         }
       }
       */
-    }
 
       for (auto &connection: data.Connections_) {
         connection->ResendCount = 0;

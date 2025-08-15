@@ -616,7 +616,7 @@ public:
       info.Algorithm = "sha256";
       info.PowLimit = uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
       info.CanBeSecondaryCoin = true;
-      info.ResetWorkOnBlockChange = true;
+      info.ResetWorkOnBlockChange = false;
       info.WorkType = EWorkBitcoin;
     } else if (strcmp(coinName, "FB.testnet") == 0) {
       info.Name = "FB.testnet";
@@ -635,7 +635,7 @@ public:
       info.Algorithm = "sha256";
       info.PowLimit = uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
       info.CanBeSecondaryCoin = true;
-      info.ResetWorkOnBlockChange = false;
+      info.ResetWorkOnBlockChange = true;
       info.WorkType = EWorkBitcoin;
     } else if (strcmp(coinName, "HOOT") == 0) {
       info.Name = "HOOT";

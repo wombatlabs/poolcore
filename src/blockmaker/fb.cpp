@@ -34,20 +34,13 @@ namespace FB {
 
 void FB::Stratum::MergedWork::buildBlock(size_t workIdx, xmstream &blockHexData)
 {
-  // Debug: Log buildBlock calls
-  fprintf(stderr, "FB::MergedWork::buildBlock called with workIdx %zu\n", workIdx);
-  
   if (workIdx == 0 && btcWork()) {
     // Primary (BTC) produces a raw block via submitblock
-    fprintf(stderr, "Building BTC primary block\n");
     btcWork()->buildBlock(workIdx, blockHexData);
   } else if (workIdx > 0 && fbWork(workIdx - 1)) {
     // Secondary (FB) builds AuxPoW block like DOGE does for secondary chains
     // The pool framework should handle submitauxblock based on CanBeSecondaryCoin flag
-    fprintf(stderr, "Building FB secondary block for workIdx %zu\n", workIdx);
     fbWork(workIdx - 1)->buildBlockImpl(FBHeader_[workIdx - 1], FBWitness_[workIdx - 1], blockHexData);
-  } else {
-    fprintf(stderr, "No work found for workIdx %zu\n", workIdx);
   }
 }
 
@@ -221,8 +214,6 @@ FB::Stratum::FBWork *FB::Stratum::newSecondaryWork(int64_t stratumId,
                                                CBlockTemplate &blockTemplate,
                                                std::string &error)
 {
-  // Debug: Add logging to verify this method is being called
-  fprintf(stderr, "FB::newSecondaryWork called for stratumId %ld\n", stratumId);
   
   if (blockTemplate.WorkType != EWorkBitcoin) {
     error = "incompatible work type";
@@ -252,8 +243,6 @@ StratumMergedWork *FB::Stratum::newMergedWork(int64_t stratumId,
                                           const CMiningConfig &miningCfg,
                                           std::string &error)
 {
-  // Debug: Add logging to verify merged work creation
-  fprintf(stderr, "FB::newMergedWork called with %zu secondary works\n", second.size());
   
   uint32_t mmNonce = 0;
   unsigned virtualHashesNum = 0;

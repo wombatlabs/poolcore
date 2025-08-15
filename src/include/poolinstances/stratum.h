@@ -306,6 +306,17 @@ public:
 
       int64_t currentTime = time(nullptr);
       unsigned counter = 0;
+
+      for (size_t i = 0, ie = work->backendsNum(); i != ie; ++i) {
+        PoolBackend *b = work->backend(i);
+        if (!b) continue;
+        double ew = work->expectedWork(i);
+        uint64_t h = work->height(i);
+        if (auto *acc = b->accountingDb()) {
+          acc->setCurrentRound(h, ew); // <<< round-aware (resets per-miner maps when height flips)
+        }
+      }
+
       for (auto &connection: data.Connections_) {
         connection->ResendCount = 0;
         stratumSendWork(connection, work, currentTime);
@@ -718,6 +729,10 @@ private:
       shareAccepted = true;
       if (checkStatus.IsBlock) {
         LOG_F(INFO, "%s: new proof of work for %s found; hash: %s; transactions: %zu", Name_.c_str(), backend->getCoinInfo().Name.c_str(), blockHash.c_str(), work->txNum(i));
+        // (optional) Count block shares as miner work
+        if (auto *acc = backend->accountingDb()) {
+          acc->addCurrentRoundWork(worker.User, worker.WorkerName, connection->ShareDifficulty);
+        }
 
         // Serialize block
         xmstream blockHexData;
@@ -761,9 +776,13 @@ private:
         backendShare->userId = worker.User;
         backendShare->workerId = worker.WorkerName;
         backendShare->height = height;
-        backendShare->WorkValue = connection->ShareDifficulty;
+        backendShare->WorkValue = checkStatus.ShareDiff;
         backendShare->isBlock = false;
         backend->sendShare(backendShare);
+
+        if (auto *acc = backend->accountingDb()) {
+          acc->addCurrentRoundWork(worker.User, worker.WorkerName, checkStatus.ShareDiff);
+        }
 
         if (checkStatus.IsPendingBlock) {
           if (data.WorkStorage.updatePending(i, worker.User, worker.WorkerName, checkStatus.ShareDiff, connection->ShareDifficulty, xatoi<uint64_t>(msg.Submit.JobId.c_str()), connection->WorkerConfig, msg))

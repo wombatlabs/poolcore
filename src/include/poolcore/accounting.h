@@ -16,6 +16,14 @@
 #include <map>
 #include <set>
 #include <string>
+#include <atomic>
+
+#include <mutex>
+#include <optional>
+#include <unordered_map>
+#include <unordered_set>
+#include <filesystem>
+#include <limits>
 
 class CPriceFetcher;
 class StatisticDb;
@@ -47,6 +55,67 @@ public:
     std::map<std::string, double> CurrentScores;
   };
 
+  // Async callback type for current round effort
+  using CurrentEffortCallback = std::function<void(double accumulatedWork, double expectedWork, double effort)>;
+  using MinerEffortCallback = std::function<void(double accumulatedWork, double expectedWork, double effort)>;
+
+  // Async task to fetch current round effort
+  class TaskCurrentEffort : public Task<AccountingDb> {
+  public:
+    TaskCurrentEffort(CurrentEffortCallback cb) : Cb_(std::move(cb)) {}
+    void run(AccountingDb *accounting) final { accounting->currentEffortImpl(Cb_); }
+  private:
+    CurrentEffortCallback Cb_;
+  };
+
+  // add a task (place next to TaskCurrentEffort)
+  class TaskMinerCurrentEffort : public Task<AccountingDb> {
+  public:
+    TaskMinerCurrentEffort(std::string user,
+                          std::optional<std::string> worker,
+                          MinerEffortCallback cb)
+      : User_(std::move(user)), Worker_(std::move(worker)), Cb_(std::move(cb)) {}
+    void run(AccountingDb *acc) final {
+      acc->minerCurrentEffortImpl(User_, Worker_, Cb_);
+    }
+  private:
+    std::string User_;
+    std::optional<std::string> Worker_;
+    MinerEffortCallback Cb_;
+  };
+
+  // Setter from stratum when new work is broadcast
+  void setCurrentExpectedWork(double ew);
+
+  // Enqueue async query
+  void queryCurrentEffort(CurrentEffortCallback cb) { TaskHandler_.push(new TaskCurrentEffort(std::move(cb))); }
+
+  // public method (put near queryCurrentEffort)
+  void queryMinerCurrentEffort(const std::string &user,
+                              const std::string *workerOrNull,
+                              MinerEffortCallback cb) {
+    std::optional<std::string> w;
+    if (workerOrNull) w = *workerOrNull;
+    TaskHandler_.push(new TaskMinerCurrentEffort(user, std::move(w), std::move(cb)));
+  }
+
+  // NEW: round lifecycle
+  void setCurrentRound(uint64_t height, double expectedWork);
+  // Keep existing setCurrentExpectedWork(...) calling into setCurrentRound(...), or deprecate it.
+
+  // NEW: bump per-miner/worker when a share is accepted
+  void addCurrentRoundWork(const std::string &user,
+                           const std::string &worker,
+                           double workValue);
+
+  // NEW: queries used by the API
+  double getCurrentRoundExpectedWork() const;
+  uint64_t getCurrentRoundHeight() const;
+
+  double getCurrentRoundUserWork(const std::string &user) const; // sum of all workers
+  double getCurrentRoundWorkerWork(const std::string &user,
+                                   const std::string &worker) const;
+
 private:
   using DefaultCb = std::function<void(const char*)>;
   using ManualPayoutCallback = std::function<void(bool)>;
@@ -55,6 +124,24 @@ private:
   using QueryPPLNSPayoutsCallback = std::function<void(const std::vector<CPPLNSPayout>&)>;
   using QueryPPLNSAccCallback = std::function<void(const std::vector<CPPLNSPayoutAcc>&)>;
   using PoolLuckCallback = std::function<void(const std::vector<double>&)>;
+
+  void currentEffortImpl(CurrentEffortCallback cb);
+  std::atomic<double> CurrentExpectedWork_{0.0};
+
+  void minerCurrentEffortImpl(const std::string &user,
+                              const std::optional<std::string> &worker,
+                              MinerEffortCallback cb);
+
+  mutable std::mutex CurrentRoundMtx_;
+
+  uint64_t CurrentRoundHeight_ = 0;
+  double   CurrentRoundExpectedWork_ = 0.0;
+  double   CurrentRoundAccumulatedWork_ = 0.0; // you already have something like this; keep it
+
+  // NEW maps
+  std::unordered_map<std::string, double> CurrentRoundUserWork_; // user -> work
+  std::unordered_map<std::string, std::unordered_map<std::string, double>>
+      CurrentRoundUserWorkerWork_; // user -> worker -> work
 
   struct UserFeePair {
     std::string UserId;

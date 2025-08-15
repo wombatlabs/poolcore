@@ -1381,3 +1381,91 @@ void AccountingDb::queryBalanceImpl(const std::string &user, QueryBalanceCallbac
 
   callback(info);
 }
+
+void AccountingDb::setCurrentExpectedWork(double ew) {
+  // If you don't know height here, keep prior height; this won’t reset per-miner maps.
+  setCurrentRound(CurrentRoundHeight_, ew);
+}
+
+void AccountingDb::currentEffortImpl(CurrentEffortCallback cb)
+{
+  // Sum current round work from CurrentScores_
+  double accumulated = 0.0;
+  for (const auto &kv : CurrentScores_)
+    accumulated += kv.second;
+
+  double expected = CurrentExpectedWork_.load(std::memory_order_relaxed);
+  double effort = (expected > 0.0) ? (accumulated / expected) : 0.0;
+
+  if (cb) cb(accumulated, expected, effort);
+}
+
+void AccountingDb::minerCurrentEffortImpl(const std::string &user,
+                                          const std::optional<std::string> &worker,
+                                          MinerEffortCallback cb) {
+  double accumulated = 0.0;
+  double expected = 0.0;
+  {
+    std::lock_guard<std::mutex> lk(CurrentRoundMtx_);
+    expected = CurrentRoundExpectedWork_;
+    if (worker && !worker->empty()) {
+      auto itU = CurrentRoundUserWorkerWork_.find(user);
+      if (itU != CurrentRoundUserWorkerWork_.end()) {
+        auto itW = itU->second.find(*worker);
+        if (itW != itU->second.end()) accumulated = itW->second;
+      }
+    } else {
+      auto it = CurrentRoundUserWork_.find(user);
+      if (it != CurrentRoundUserWork_.end()) accumulated = it->second;
+    }
+  }
+  double effort = expected > 0.0 ? (accumulated / expected) : 0.0;
+  cb(accumulated, expected, effort);
+}
+
+void AccountingDb::setCurrentRound(uint64_t height, double expectedWork) {
+  std::lock_guard<std::mutex> lk(CurrentRoundMtx_);
+  if (height != CurrentRoundHeight_) {
+    CurrentRoundHeight_ = height;
+    CurrentRoundAccumulatedWork_ = 0.0;
+    CurrentRoundUserWork_.clear();
+    CurrentRoundUserWorkerWork_.clear();
+  }
+  CurrentRoundExpectedWork_ = expectedWork;
+  CurrentExpectedWork_.store(expectedWork, std::memory_order_relaxed); // keep legacy atomic in sync
+}
+
+void AccountingDb::addCurrentRoundWork(const std::string &user,
+                                       const std::string &worker,
+                                       double workValue) {
+  if (workValue <= 0) return;
+  std::lock_guard<std::mutex> lk(CurrentRoundMtx_);
+  CurrentRoundAccumulatedWork_ += workValue;
+  CurrentRoundUserWork_[user] += workValue;
+  CurrentRoundUserWorkerWork_[user][worker] += workValue;
+}
+
+double AccountingDb::getCurrentRoundExpectedWork() const {
+  std::lock_guard<std::mutex> lk(CurrentRoundMtx_);
+  return CurrentRoundExpectedWork_;
+}
+
+uint64_t AccountingDb::getCurrentRoundHeight() const {
+  std::lock_guard<std::mutex> lk(CurrentRoundMtx_);
+  return CurrentRoundHeight_;
+}
+
+double AccountingDb::getCurrentRoundUserWork(const std::string &user) const {
+  std::lock_guard<std::mutex> lk(CurrentRoundMtx_);
+  auto it = CurrentRoundUserWork_.find(user);
+  return it == CurrentRoundUserWork_.end() ? 0.0 : it->second;
+}
+
+double AccountingDb::getCurrentRoundWorkerWork(const std::string &user,
+                                               const std::string &worker) const {
+  std::lock_guard<std::mutex> lk(CurrentRoundMtx_);
+  auto itU = CurrentRoundUserWorkerWork_.find(user);
+  if (itU == CurrentRoundUserWorkerWork_.end()) return 0.0;
+  auto itW = itU->second.find(worker);
+  return itW == itU->second.end() ? 0.0 : itW->second;
+}

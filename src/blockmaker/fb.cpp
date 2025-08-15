@@ -174,10 +174,12 @@ bool FB::Stratum::MergedWork::prepareForSubmit(const CWorkerConfig &workerCfg,
 
 CCheckStatus FB::Stratum::MergedWork::checkConsensus(size_t workIdx)
 {
-  if (workIdx == 0 && btcWork())
+  if (workIdx == 0 && btcWork()) {
     return BTC::Stratum::Work::checkConsensusImpl(BTCHeader_, BTCConsensusCtx_);
-  else if (fbWork(workIdx - 1))
-    return FB::Stratum::FBWork::checkConsensusImpl(FBHeader_[workIdx - 1], FBConsensusCtx_);
+  } else if (fbWork(workIdx - 1)) {
+    // For FB secondary, delegate to the underlying work's consensus check
+    return fbWork(workIdx - 1)->checkConsensus(workIdx - 1);
+  }
   return CCheckStatus();
 }
 

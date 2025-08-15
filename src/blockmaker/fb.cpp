@@ -136,9 +136,9 @@ std::string FB::Stratum::MergedWork::blockHash(size_t workIdx)
 bool FB::Stratum::MergedWork::prepareForSubmit(const CWorkerConfig &workerCfg,
                                                const CStratumMessage &msg)
 {
-  // Fill primary BTC header from the miner’s share fields
+  // Fill primary BTC header from the miner's share fields  
   if (!BTC::Stratum::Work::prepareForSubmitImpl(
-          BTCHeader_, /*asicBoostData*/ 0, BTCLegacy_, BTCWitness_, BTCMerklePath_,
+          BTCHeader_, BTCHeader_.nVersion, BTCLegacy_, BTCWitness_, BTCMerklePath_,
           workerCfg, MiningCfg_, msg))
     return false;
 

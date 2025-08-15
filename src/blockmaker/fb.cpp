@@ -34,9 +34,13 @@ namespace FB {
 
 void FB::Stratum::MergedWork::buildBlock(size_t workIdx, xmstream &blockHexData)
 {
-  // Only the primary (BTC) produces a raw block here; FB is submitted via submitauxblock.
   if (workIdx == 0 && btcWork()) {
+    // Primary (BTC) produces a raw block via submitblock
     btcWork()->buildBlock(workIdx, blockHexData);
+  } else if (workIdx > 0 && fbWork(workIdx - 1)) {
+    // Secondary (FB) builds AuxPoW block like DOGE does for secondary chains
+    // The pool framework should handle submitauxblock based on CanBeSecondaryCoin flag
+    fbWork(workIdx - 1)->buildBlockImpl(FBHeader_[workIdx - 1], FBWitness_[workIdx - 1], blockHexData);
   }
 }
 

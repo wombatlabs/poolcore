@@ -5,10 +5,6 @@
 // same magic as DOGE/Litecoin merged-mining header
 static const unsigned char pchMergedMiningHeader[] = { 0xfa, 0xbe, 'm', 'm' };
 
-static unsigned merklePathSize(unsigned count)
-{
-  return count > 1 ? (31 - __builtin_clz((count << 1) - 1)) : 0;
-}
 
 // Build chain map for FB merged mining (simplified for single secondary)
 static std::vector<int> buildChainMap(std::vector<StratumSingleWork*> &secondary, uint32_t &nonce, unsigned &virtualHashesNum)
@@ -182,11 +178,9 @@ CCheckStatus FB::Stratum::MergedWork::checkConsensus(size_t workIdx)
     // Primary BTC work consensus check
     return BTC::Stratum::Work::checkConsensusImpl(BTCHeader_, BTCConsensusCtx_);
   } else if (workIdx > 0 && workIdx - 1 < FBHeader_.size()) {
-    // For FB secondary in merged mining, return success for now
+    // For FB secondary in merged mining, return default success status
     // The actual validation happens in the FB node via submitauxblock
-    CCheckStatus status;
-    status.Result = true;
-    return status;
+    return CCheckStatus();
   }
   return CCheckStatus();
 }

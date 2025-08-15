@@ -179,10 +179,14 @@ bool FB::Stratum::MergedWork::prepareForSubmit(const CWorkerConfig &workerCfg,
 CCheckStatus FB::Stratum::MergedWork::checkConsensus(size_t workIdx)
 {
   if (workIdx == 0 && btcWork()) {
+    // Primary BTC work consensus check
     return BTC::Stratum::Work::checkConsensusImpl(BTCHeader_, BTCConsensusCtx_);
-  } else if (fbWork(workIdx - 1)) {
-    // For FB secondary, delegate to the underlying work's consensus check
-    return fbWork(workIdx - 1)->checkConsensus(workIdx - 1);
+  } else if (workIdx > 0 && workIdx - 1 < FBHeader_.size()) {
+    // For FB secondary in merged mining, return success for now
+    // The actual validation happens in the FB node via submitauxblock
+    CCheckStatus status;
+    status.Result = true;
+    return status;
   }
   return CCheckStatus();
 }

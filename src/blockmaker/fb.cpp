@@ -49,7 +49,7 @@ void FB::Stratum::MergedWork::buildBlock(size_t workIdx, xmstream &blockHexData)
   }
 }
 
-Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
+FB::Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
                                     StratumSingleWork *first,
                                     std::vector<StratumSingleWork*> &second,
                                     std::vector<int> &mmChainId,
@@ -133,7 +133,7 @@ Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
 }
 
 
-std::string Stratum::MergedWork::blockHash(size_t workIdx)
+std::string FB::Stratum::MergedWork::blockHash(size_t workIdx)
 {
   if (workIdx == 0 && btcWork())
     return BTCHeader_.GetHash().GetHex();
@@ -177,7 +177,7 @@ bool FB::Stratum::MergedWork::prepareForSubmit(const CWorkerConfig &workerCfg,
   return true;
 }
 
-CCheckStatus Stratum::MergedWork::checkConsensus(size_t workIdx)
+CCheckStatus FB::Stratum::MergedWork::checkConsensus(size_t workIdx)
 {
   if (workIdx == 0 && btcWork())
     return BTC::Stratum::Work::checkConsensusImpl(BTCHeader_, BTCConsensusCtx_);
@@ -187,13 +187,13 @@ CCheckStatus Stratum::MergedWork::checkConsensus(size_t workIdx)
 }
 
 // Required pure-virtuals from StratumWork
-void Stratum::MergedWork::mutate()
+void FB::Stratum::MergedWork::mutate()
 {
   // Delegate mutation (extranonce/version rolling) to primary BTC work
   if (btcWork()) btcWork()->mutate();
 }
 
-void Stratum::MergedWork::buildNotifyMessage(bool resetPreviousWork)
+void FB::Stratum::MergedWork::buildNotifyMessage(bool resetPreviousWork)
 {
   // For now just delegate primary notify; we’ll extend to include FB fields later
   if (btcWork()) btcWork()->buildNotifyMessage(resetPreviousWork);
@@ -201,7 +201,7 @@ void Stratum::MergedWork::buildNotifyMessage(bool resetPreviousWork)
 
 // Secondary work creation: FB needs the aux hash from createauxblock.
 // We piggy-back on the generic WorkTy loader then patch in the AuxPoW bit and aux hash.
-FB::Stratum::FBWork *Stratum::newSecondaryWork(int64_t stratumId,
+FB::Stratum::FBWork *FB::Stratum::newSecondaryWork(int64_t stratumId,
                                                PoolBackend *backend,
                                                size_t backendIdx,
                                                const CMiningConfig &miningCfg,
@@ -232,7 +232,7 @@ FB::Stratum::FBWork *Stratum::newSecondaryWork(int64_t stratumId,
 }
 
 // Glue everything into a StratumMergedWork
-StratumMergedWork *Stratum::newMergedWork(int64_t stratumId,
+StratumMergedWork *FB::Stratum::newMergedWork(int64_t stratumId,
                                           StratumSingleWork *first,
                                           std::vector<StratumSingleWork*> &second,
                                           const CMiningConfig &miningCfg,
@@ -245,7 +245,7 @@ StratumMergedWork *Stratum::newMergedWork(int64_t stratumId,
     error = "cannot build chain map for merged mining";
     return nullptr;
   }
-  return new Stratum::MergedWork(stratumId, first, second, chainMap, mmNonce, virtualHashesNum, miningCfg);
+  return new FB::Stratum::MergedWork(stratumId, first, second, chainMap, mmNonce, virtualHashesNum, miningCfg);
 }
 
 } // namespace FB

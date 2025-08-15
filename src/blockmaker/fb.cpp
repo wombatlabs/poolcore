@@ -188,10 +188,9 @@ CCheckStatus FB::Stratum::MergedWork::checkConsensus(size_t workIdx)
   if (workIdx == 0 && btcWork()) {
     // Primary BTC work consensus check
     return BTC::Stratum::Work::checkConsensusImpl(BTCHeader_, BTCConsensusCtx_);
-  } else if (workIdx > 0 && workIdx - 1 < FBHeader_.size()) {
-    // For FB secondary in merged mining, return default success status
-    // The actual validation happens in the FB node via submitauxblock
-    return CCheckStatus();
+  } else if (workIdx > 0 && fbWork(workIdx - 1)) {
+    // For FB secondary chains, perform proper consensus check like DOGE does
+    return FB::Stratum::FBWork::checkConsensusImpl(FBHeader_[workIdx - 1], FBConsensusCtx_);
   }
   return CCheckStatus();
 }

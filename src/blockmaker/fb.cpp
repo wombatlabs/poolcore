@@ -10,33 +10,28 @@ static unsigned merklePathSize(unsigned count)
   return count > 1 ? (31 - __builtin_clz((count << 1) - 1)) : 0;
 }
 
-// Reuse the same “virtual tree” mapping pattern as DOGE
+// Build chain map for FB merged mining (simplified for single secondary)
 static std::vector<int> buildChainMap(std::vector<StratumSingleWork*> &secondary, uint32_t &nonce, unsigned &virtualHashesNum)
 {
   std::vector<int> result;
-  std::vector<int> chainMap;
   result.resize(secondary.size());
-  bool finished = true;
-  for (unsigned h = 0; ; h++) {
-    unsigned treeSize = (1U << h);
-    if (treeSize >= secondary.size()) {
-      virtualHashesNum = treeSize;
-      chainMap.resize(virtualHashesNum, -1);
-      for (size_t i = 0; i < secondary.size(); i++) {
-        uint32_t expectedIndex = (nonce + i) % virtualHashesNum;
-        chainMap[expectedIndex] = static_cast<int>(i);
-      }
-      for (size_t i = 0; i < chainMap.size(); i++) {
-        if (chainMap[i] < 0)
-          finished = false;
-        else
-          result[chainMap[i]] = static_cast<int>(i);
-      }
-    }
-    if (finished)
-      break;
+  
+  // For FB, we use a simple approach since typically there's only one secondary chain
+  // Calculate minimum tree size to accommodate all secondaries
+  unsigned minTreeSize = 1;
+  while (minTreeSize < secondary.size()) {
+    minTreeSize <<= 1;
   }
-  return finished ? result : std::vector<int>();
+  
+  virtualHashesNum = minTreeSize;
+  nonce = 0; // Start with nonce 0
+  
+  // Simple mapping: each secondary gets an index in order
+  for (size_t i = 0; i < secondary.size(); i++) {
+    result[i] = static_cast<int>(i);
+  }
+  
+  return result;
 }
 
 namespace FB {

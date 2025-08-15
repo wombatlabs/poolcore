@@ -87,7 +87,7 @@ FB::Stratum::MergedWork::MergedWork(uint64_t stratumWorkId,
     work->buildCoinbaseTx(nullptr, 0, emptyExtraNonceConfig, legacy, witness);
 
     // --- Compute FB merkle root from that static coinbase and FB merkle path ---
-    header.nVersion |= 0x100; // AuxPoW bit (same convention as Namecoin/DOGE)
+    header.nVersion |= FB::Proto::BlockHeader::VERSION_AUXPOW; // AuxPoW bit
     {
       // double-SHA256(coinbase) -> coinbaseTxHash
       uint256 coinbaseTxHash;
@@ -146,9 +146,13 @@ bool FB::Stratum::MergedWork::prepareForSubmit(const CWorkerConfig &workerCfg,
           workerCfg, MiningCfg_, msg))
     return false;
 
-  // Build AuxPoW metadata for each FB secondary (no coinbase (de)serialization here)
+  // Build AuxPoW metadata for each FB secondary
   for (size_t i = 0; i < FBHeader_.size(); ++i) {
     FB::Proto::BlockHeader &hdr = FBHeader_[i];
+    
+    // Deserialize parent BTC coinbase transaction (critical for AuxPoW)
+    BTCWitness_.Data.seekSet(0);
+    BTC::unserialize(BTCWitness_.Data, hdr.ParentBlockCoinbaseTx);
 
     hdr.HashBlock.SetNull();
     hdr.Index = 0;
@@ -186,14 +190,16 @@ CCheckStatus FB::Stratum::MergedWork::checkConsensus(size_t workIdx)
 // Required pure-virtuals from StratumWork
 void FB::Stratum::MergedWork::mutate()
 {
-  // Delegate mutation (extranonce/version rolling) to primary BTC work
-  if (btcWork()) btcWork()->mutate();
+  // Update timestamp like DOGE does
+  BTCHeader_.nTime = static_cast<uint32_t>(time(nullptr));
+  // Build notify message with updated header
+  BTC::Stratum::Work::buildNotifyMessageImpl(this, BTCHeader_, BTCHeader_.nVersion, BTCLegacy_, BTCMerklePath_, MiningCfg_, true, NotifyMessage_);
 }
 
 void FB::Stratum::MergedWork::buildNotifyMessage(bool resetPreviousWork)
 {
-  // For now just delegate primary notify; we’ll extend to include FB fields later
-  if (btcWork()) btcWork()->buildNotifyMessage(resetPreviousWork);
+  // Build stratum notify message for merged mining work
+  BTC::Stratum::Work::buildNotifyMessageImpl(this, BTCHeader_, BTCHeader_.nVersion, BTCLegacy_, BTCMerklePath_, MiningCfg_, resetPreviousWork, NotifyMessage_);
 }
 
 // Secondary work creation: FB needs the aux hash from createauxblock.
@@ -224,7 +230,7 @@ FB::Stratum::FBWork *FB::Stratum::newSecondaryWork(int64_t stratumId,
     return nullptr;
 
   // Mark AuxPoW (version bit); the aux hash will be committed from createauxblock in MergedWork ctor
-  work->Header.nVersion |= 0x100;
+  work->Header.nVersion |= FB::Proto::BlockHeader::VERSION_AUXPOW;
   return work.release();
 }
 
@@ -251,33 +257,29 @@ StratumMergedWork *FB::Stratum::newMergedWork(int64_t stratumId,
 namespace BTC {
 void Io<FB::Proto::BlockHeader>::serialize(xmstream &dst, const FB::Proto::BlockHeader &h)
 {
-  BTC::serialize(dst, h.nVersion);
-  BTC::serialize(dst, h.hashPrevBlock);
-  BTC::serialize(dst, h.hashMerkleRoot);
-  BTC::serialize(dst, h.nTime);
-  BTC::serialize(dst, h.nBits);
-  BTC::serialize(dst, h.nNonce);
-  BTC::serialize(dst, h.HashBlock);
-  BTC::serialize(dst, h.MerkleBranch);
-  BTC::serialize(dst, h.Index);
-  BTC::serialize(dst, h.ChainMerkleBranch);
-  BTC::serialize(dst, h.ChainIndex);
-  BTC::serialize(dst, h.ParentBlock);
+  BTC::serialize(dst, *(FB::Proto::PureBlockHeader*)&h);
+  if (h.nVersion & FB::Proto::BlockHeader::VERSION_AUXPOW) {
+    BTC::serialize(dst, h.ParentBlockCoinbaseTx);
+    BTC::serialize(dst, h.HashBlock);
+    BTC::serialize(dst, h.MerkleBranch);
+    BTC::serialize(dst, h.Index);
+    BTC::serialize(dst, h.ChainMerkleBranch);
+    BTC::serialize(dst, h.ChainIndex);
+    BTC::serialize(dst, h.ParentBlock);
+  }
 }
 void Io<FB::Proto::BlockHeader>::unserialize(xmstream &src, FB::Proto::BlockHeader &h)
 {
-  BTC::unserialize(src, h.nVersion);
-  BTC::unserialize(src, h.hashPrevBlock);
-  BTC::unserialize(src, h.hashMerkleRoot);
-  BTC::unserialize(src, h.nTime);
-  BTC::unserialize(src, h.nBits);
-  BTC::unserialize(src, h.nNonce);
-  BTC::unserialize(src, h.HashBlock);
-  BTC::unserialize(src, h.MerkleBranch);
-  BTC::unserialize(src, h.Index);
-  BTC::unserialize(src, h.ChainMerkleBranch);
-  BTC::unserialize(src, h.ChainIndex);
-  BTC::unserialize(src, h.ParentBlock);
+  BTC::unserialize(src, *(FB::Proto::PureBlockHeader*)&h);
+  if (h.nVersion & FB::Proto::BlockHeader::VERSION_AUXPOW) {
+    BTC::unserialize(src, h.ParentBlockCoinbaseTx);
+    BTC::unserialize(src, h.HashBlock);
+    BTC::unserialize(src, h.MerkleBranch);
+    BTC::unserialize(src, h.Index);
+    BTC::unserialize(src, h.ChainMerkleBranch);
+    BTC::unserialize(src, h.ChainIndex);
+    BTC::unserialize(src, h.ParentBlock);
+  }
 }
 }
 

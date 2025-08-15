@@ -16,7 +16,10 @@ public:
 
   // We store AuxPoW fields alongside the pure header for local assembly
   struct BlockHeader : public PureBlockHeader {
+  public:
+    static const int32_t VERSION_AUXPOW = (1 << 8);
     // AuxPoW payload (for submit)
+    Transaction ParentBlockCoinbaseTx;        // Parent (BTC) coinbase transaction
     BTC::Proto::BlockHashTy HashBlock;        // FB block hash (after we compute it)
     xvector<uint256> MerkleBranch;            // Parent (BTC) merkle path to coinbase
     int Index = 0;                            // Parent coinbase index in tree
@@ -36,18 +39,11 @@ public:
   using ChainParams       = BTC::Proto::ChainParams;
 
   static void checkConsensusInitialize(CheckConsensusCtx&) {}
-  static CCheckStatus checkConsensus(const Proto::BlockHeader &header,
-                                     CheckConsensusCtx &ctx,
-                                     Proto::ChainParams &params)
-  {
-    // If AuxPoW bit is set, validate against the parent BTC header
-    if (header.nVersion & 0x100) {
-      return BTC::Proto::checkConsensus(header.ParentBlock, ctx, params);
-    }
-    // Otherwise validate the FB header itself (cast to BTC header base)
-    const BTC::Proto::BlockHeader &base =
-        static_cast<const BTC::Proto::BlockHeader&>(header);
-    return BTC::Proto::checkConsensus(base, ctx, params);
+  static CCheckStatus checkConsensus(const Proto::BlockHeader &header, CheckConsensusCtx&, Proto::ChainParams&) {
+    // For FB merged mining: if AuxPoW bit set, check parent BTC header PoW, otherwise check FB header PoW
+    return header.nVersion & Proto::BlockHeader::VERSION_AUXPOW ?
+      BTC::Proto::checkPow(header.ParentBlock, header.ParentBlock.nBits) :
+      BTC::Proto::checkPow(static_cast<const BTC::Proto::BlockHeader&>(header), header.nBits);
   }
 
   static CCheckStatus checkConsensus(const Proto::Block &block, CheckConsensusCtx &ctx, ChainParams &chainParams) {

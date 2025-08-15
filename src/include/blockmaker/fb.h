@@ -163,6 +163,14 @@ public:
   template<typename T> static inline void serialize(xmstream &src, const T &data) { BTC::Io<T>::serialize(src, data); }
   template<typename T> static inline void unserialize(xmstream &dst, T &data) { BTC::Io<T>::unserialize(dst, data); }
 };
+
+struct X {
+  using Proto = FB::Proto;
+  using Stratum = FB::Stratum;
+
+  template<typename T> static inline void serialize(xmstream &src, const T &data) { BTC::Io<T>::serialize(src, data); }
+  template<typename T> static inline void unserialize(xmstream &dst, T &data) { BTC::Io<T>::unserialize(dst, data); }
+};
 }
 
 // JSON serialization for debugging / logs if needed

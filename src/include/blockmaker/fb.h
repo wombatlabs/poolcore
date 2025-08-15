@@ -88,29 +88,6 @@ public:
     virtual CCheckStatus checkConsensus(size_t workIdx) override;
     virtual void mutate() override;
     virtual void buildNotifyMessage(bool resetPreviousWork) override;
-    
-    // Additional required virtual methods
-    virtual size_t backendsNum() override { return Works_.size(); }
-    virtual PoolBackend *backend(size_t workIdx) override { return workIdx < Works_.size() ? Works_[workIdx].Work->backend(0) : nullptr; }
-    virtual size_t backendId(size_t workIdx) override { return workIdx < Works_.size() ? Works_[workIdx].Id : 0; }
-    virtual uint64_t height(size_t workIdx) override { return workIdx < Works_.size() ? Works_[workIdx].Work->height(0) : 0; }
-    virtual size_t txNum(size_t workIdx) override { return workIdx < Works_.size() ? Works_[workIdx].Work->txNum(0) : 0; }
-    virtual int64_t blockReward(size_t workIdx) override { return workIdx < Works_.size() ? Works_[workIdx].Work->blockReward(0) : 0; }
-    virtual double expectedWork(size_t workIdx) override { 
-      if (workIdx == 0 && btcWork()) return btcWork()->expectedWork(0);
-      if (workIdx > 0 && fbWork(workIdx - 1)) return fbWork(workIdx - 1)->expectedWork(0);
-      return 0.0;
-    }
-    virtual bool ready() override { return btcWork() && btcWork()->ready(); }
-    virtual double getAbstractProfitValue(size_t workIdx, double price, double coeff) override { 
-      return workIdx < Works_.size() ? Works_[workIdx].Work->getAbstractProfitValue(0, price, coeff) : 0.0;
-    }
-    virtual bool hasRtt(size_t workIdx) override { 
-      return workIdx < Works_.size() ? Works_[workIdx].Work->hasRtt(0) : false;
-    }
-    virtual bool loadFromTemplate(CBlockTemplate &blockTemplate, std::string &error) override {
-      return btcWork() ? btcWork()->loadFromTemplate(blockTemplate, error) : false;
-    }
 
   private:
     BTC::Stratum::Work *btcWork() { return static_cast<BTC::Stratum::Work*>(Works_[0].Work); }

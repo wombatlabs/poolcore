@@ -141,7 +141,7 @@ public:
                                           std::string &error);
 
   static void buildSendTargetMessage(xmstream &stream, double diff) {
-    BTC::Stratum::buildSendTargetMessage(stream, diff);
+    BTC::Stratum::buildSendTargetMessageImpl(stream, diff, DifficultyFactor);
   }
 
   static EStratumDecodeStatusTy decodeStratumMessage(CStratumMessage &msg, const char *in, size_t size) { return BTC::Stratum::decodeStratumMessage(msg, in, size); }

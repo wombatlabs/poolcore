@@ -6,6 +6,7 @@
 #include "blockmaker/dash.h"
 #include "blockmaker/dgb.h"
 #include "blockmaker/doge.h"
+#include "blockmaker/fb.h"
 #include "blockmaker/eth.h"
 #include "blockmaker/ltc.h"
 #include "blockmaker/xpm.h"
@@ -19,6 +20,7 @@ std::unordered_map<std::string, PoolInstanceFabric::NewPoolInstanceFunction> Poo
   {"DGB.odo.stratum", [](asyncBase *base, UserManager &userMgr, const std::vector<PoolBackend*> &linkedBackends, CThreadPool &pool, unsigned instanceId, unsigned instancesNum, rapidjson::Value &config, CPriceFetcher *priceFetcher) { return new StratumInstance<DGB::X<DGB::Algo::EOdo>>(base, userMgr, linkedBackends, pool, instanceId, instancesNum, config, priceFetcher); }},
   {"DOGE.stratum", [](asyncBase *base, UserManager &userMgr, const std::vector<PoolBackend*> &linkedBackends, CThreadPool &pool, unsigned instanceId, unsigned instancesNum, rapidjson::Value &config, CPriceFetcher *priceFetcher) { return new StratumInstance<DOGE::X>(base, userMgr, linkedBackends, pool, instanceId, instancesNum, config, priceFetcher); }},
   {"ETH.stratum", [](asyncBase *base, UserManager &userMgr, const std::vector<PoolBackend*> &linkedBackends, CThreadPool &pool, unsigned instanceId, unsigned instancesNum, rapidjson::Value &config, CPriceFetcher *priceFetcher) { return new StratumInstance<ETH::X>(base, userMgr, linkedBackends, pool, instanceId, instancesNum, config, priceFetcher); }},
+  {"FB.stratum", [](asyncBase *base, UserManager &userMgr, const std::vector<PoolBackend*> &linkedBackends, CThreadPool &pool, unsigned instanceId, unsigned instancesNum, rapidjson::Value &config, CPriceFetcher *priceFetcher) { return new StratumInstance<FB::X>(base, userMgr, linkedBackends, pool, instanceId, instancesNum, config, priceFetcher); }},
   {"LTC.stratum", [](asyncBase *base, UserManager &userMgr, const std::vector<PoolBackend*> &linkedBackends, CThreadPool &pool, unsigned instanceId, unsigned instancesNum, rapidjson::Value &config, CPriceFetcher *priceFetcher) { return new StratumInstance<LTC::X>(base, userMgr, linkedBackends, pool, instanceId, instancesNum, config, priceFetcher); }},
   {"ZEC.stratum", [](asyncBase *base, UserManager &userMgr, const std::vector<PoolBackend*> &linkedBackends, CThreadPool &pool, unsigned instanceId, unsigned instancesNum, rapidjson::Value &config, CPriceFetcher *priceFetcher) { return new StratumInstance<ZEC::X>(base, userMgr, linkedBackends, pool, instanceId, instancesNum, config, priceFetcher); }},
   {"XPM.zmq", [](asyncBase *base, UserManager &userMgr, const std::vector<PoolBackend*> &linkedBackends, CThreadPool &pool, unsigned instanceId, unsigned instancesNum, rapidjson::Value &config, CPriceFetcher*) { return new ZmqInstance<XPM::X>(base, userMgr, linkedBackends, pool, instanceId, instancesNum, config); }}

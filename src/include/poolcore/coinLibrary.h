@@ -931,6 +931,25 @@ public:
       info.Algorithm = "sha256";
       info.PowLimit = uint256S("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
       info.WorkType = EWorkBitcoin;
+    } else if (strcmp(coinName, "SYS") == 0) {
+      info.Name = "SYS";
+      info.FullName = "Syscoin";
+      info.PayoutAddressType = static_cast<CCoinInfo::EAddressType>(CCoinInfo::EP2PKH | CCoinInfo::EPS2H | CCoinInfo::EBech32);
+      info.RationalPartSize = 100000000;
+      info.SegwitEnabled = true;
+      info.PowerUnitType = CCoinInfo::EHash;
+      info.PowerMultLog10 = 6;
+      info.PubkeyAddressPrefix = {63};
+      info.ScriptAddressPrefix = {5};
+      info.Bech32Prefix = "sys";
+      info.DefaultRpcPort = 34646;
+      info.CoinGeckoName = "syscoin";
+      info.ProfitSwitchDefaultCoeff = 1.0;
+      info.Algorithm = "sha256";
+      info.PowLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+      info.CanBeSecondaryCoin = true;
+      info.ResetWorkOnBlockChange = false;
+      info.WorkType = EWorkBitcoin;
     } else if (strcmp(coinName, "XEC") == 0) {
       info.Name = "XEC";
       info.FullName = "eCash";

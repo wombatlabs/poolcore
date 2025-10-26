@@ -75,8 +75,8 @@ std::vector<int> Stratum::buildChainMap(std::vector<StratumSingleWork*> &seconda
 void FB::Stratum::MergedWork::buildBlock(size_t workIdx, xmstream &blockHexData)
 {
   if (workIdx == 0 && btcWork()) {
-    // Primary (BTC) produces a raw block via submitblock
-    btcWork()->buildBlock(workIdx, blockHexData);
+    // Primary (BTC) must use the mutated header/coinbase that matches the submitted share
+    btcWork()->buildBlockImpl(BTCHeader_, BTCWitness_, blockHexData);
   }
   else if (workIdx > 0 && fbWork(workIdx - 1)) {
     // Secondary (FB) produces AuxPoW container like DOGE

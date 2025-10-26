@@ -1384,7 +1384,8 @@ void AccountingDb::queryBalanceImpl(const std::string &user, QueryBalanceCallbac
 
 void AccountingDb::setCurrentExpectedWork(double ew) {
   // If you don't know height here, keep prior height; this won’t reset per-miner maps.
-  setCurrentRound(CurrentRoundHeight_, ew);
+  uint64_t height = getCurrentRoundHeight();
+  setCurrentRound(height, ew);
 }
 
 void AccountingDb::currentEffortImpl(CurrentEffortCallback cb)

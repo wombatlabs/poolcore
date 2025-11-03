@@ -224,6 +224,7 @@ struct X {
 namespace BTC {
 template<> struct Io<FB::Proto::BlockHeader> {
   static void serialize(xmstream &dst, const FB::Proto::BlockHeader &data);
+  static void unserialize(xmstream &src, FB::Proto::BlockHeader &data);
 };
 }
 

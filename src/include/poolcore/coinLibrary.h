@@ -699,6 +699,27 @@ public:
       info.Algorithm = "sha256";
       info.PowLimit = UInt<256>::fromHex("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
       info.CanBeSecondaryCoin = true;
+      info.ResetWorkOnBlockChange = false;
+      info.DefaultInstantMinimalPayout = payout("5");
+      info.DefaultRegularMinimalPayout = payout("0.25");
+    } else if (strcmp(coinName, "FB.testnet") == 0) {
+      info.Name = "FB.testnet";
+      info.FullName = "Fractal Bitcoin";
+      info.PayoutAddressType = static_cast<CCoinInfo::EAddressType>(CCoinInfo::EP2PKH | CCoinInfo::EPS2H | CCoinInfo::EBech32);
+      info.FractionalPartSize = 8;
+      info.SegwitEnabled = true;
+      info.PowerUnitType = CCoinInfo::EHash;
+      info.PowerMultLog10 = 6;
+      info.PubkeyAddressPrefix = {0};
+      info.ScriptAddressPrefix = {5};
+      info.Bech32Prefix = "bc";
+      info.DefaultRpcPort = 18332;
+      info.CoinGeckoName = "fractal-bitcoin";
+      info.ProfitSwitchDefaultCoeff = 1.0;
+      info.Algorithm = "sha256";
+      info.PowLimit = UInt<256>::fromHex("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+      info.CanBeSecondaryCoin = true;
+      info.ResetWorkOnBlockChange = false;
       info.DefaultInstantMinimalPayout = payout("5");
       info.DefaultRegularMinimalPayout = payout("0.25");
     } else if (strcmp(coinName, "HOOT") == 0) {
@@ -951,6 +972,48 @@ public:
       info.CanBeSecondaryCoin = true;
       info.DefaultInstantMinimalPayout = payout("100");
       info.DefaultRegularMinimalPayout = payout("5");
+    } else if (strcmp(coinName, "NMC") == 0) {
+      info.Name = "NMC";
+      info.FullName = "Namecoin";
+      info.PayoutAddressType = static_cast<CCoinInfo::EAddressType>(CCoinInfo::EP2PKH | CCoinInfo::EPS2H);
+      info.FractionalPartSize = 8;
+      info.SegwitEnabled = false;
+      info.PowerUnitType = CCoinInfo::EHash;
+      info.PowerMultLog10 = 6;
+      info.PubkeyAddressPrefix = {52};
+      info.ScriptAddressPrefix = {13};
+      info.DefaultRpcPort = 8336;
+      info.CoinGeckoName = "namecoin";
+      info.ProfitSwitchDefaultCoeff = 1.0;
+      info.MinimalConfirmationsNumber = 12;
+      info.Algorithm = "sha256";
+      info.PowLimit = UInt<256>::fromHex("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+      info.CanBeSecondaryCoin = true;
+      info.ResetWorkOnBlockChange = false;
+      info.WorkType = EWorkBitcoin;
+      info.DefaultInstantMinimalPayout = payout("0.5");
+      info.DefaultRegularMinimalPayout = payout("0.025");
+    } else if (strcmp(coinName, "NMC.testnet") == 0) {
+      info.Name = "NMC.testnet";
+      info.FullName = "Namecoin";
+      info.PayoutAddressType = static_cast<CCoinInfo::EAddressType>(CCoinInfo::EP2PKH | CCoinInfo::EPS2H);
+      info.FractionalPartSize = 8;
+      info.SegwitEnabled = false;
+      info.PowerUnitType = CCoinInfo::EHash;
+      info.PowerMultLog10 = 6;
+      info.PubkeyAddressPrefix = {111};
+      info.ScriptAddressPrefix = {196};
+      info.DefaultRpcPort = 18336;
+      info.CoinGeckoName = "namecoin";
+      info.ProfitSwitchDefaultCoeff = 1.0;
+      info.MinimalConfirmationsNumber = 12;
+      info.Algorithm = "sha256";
+      info.PowLimit = UInt<256>::fromHex("00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+      info.CanBeSecondaryCoin = true;
+      info.ResetWorkOnBlockChange = false;
+      info.WorkType = EWorkBitcoin;
+      info.DefaultInstantMinimalPayout = payout("0.5");
+      info.DefaultRegularMinimalPayout = payout("0.025");
     } else if (strcmp(coinName, "OSMI") == 0) {
       info.Name = "OSMI";
       info.FullName = "Osmium";

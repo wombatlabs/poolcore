@@ -8,6 +8,7 @@
 #include "blockmaker/doge.h"
 #include "blockmaker/eth.h"
 #include "blockmaker/ltc.h"
+#include "blockmaker/nmc.h"
 #include "blockmaker/xpm.h"
 #include "blockmaker/zec.h"
 
@@ -114,6 +115,19 @@ std::unordered_map<std::string, PoolInstanceFabric::NewPoolInstanceFunction> Poo
                      rapidjson::Value &config,
                      CPriceFetcher *priceFetcher) {
     return new StratumInstance<LTC::X>(
+      base, userMgr, linkedBackends, pool, algoMetaStatistic, miningStats, instanceId, instancesNum, config, priceFetcher);
+  }},
+  {"NMC.stratum", [](asyncBase *base,
+                     UserManager &userMgr,
+                     const std::vector<PoolBackend*> &linkedBackends,
+                     CThreadPool &pool,
+                     StatisticServer *algoMetaStatistic,
+                     ComplexMiningStats *miningStats,
+                     unsigned instanceId,
+                     unsigned instancesNum,
+                     rapidjson::Value &config,
+                     CPriceFetcher *priceFetcher) {
+    return new StratumInstance<NMC::X>(
       base, userMgr, linkedBackends, pool, algoMetaStatistic, miningStats, instanceId, instancesNum, config, priceFetcher);
   }},
   {"ZEC.stratum", [](asyncBase *base,

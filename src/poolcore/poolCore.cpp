@@ -157,7 +157,7 @@ void CNetworkClient::stop()
 {
   Stopped_ = true;
   if (ReconnectTimer_)
-    userEventStartTimer(ReconnectTimer_, 0, 0);
+    userEventStopTimer(ReconnectTimer_);
   if (FeeUpdateTimer_) {
     FeeUpdateTimer_->stop();
     FeeUpdateTimer_->wait(CoinInfo_.Name.c_str(), "fee estimation");
